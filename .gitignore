@@ -6,3 +6,4 @@ notebooks/cifar_net.pth
 node_modules/*
 app/__pycache__/
 app/server/__pycache__/
+.angular/

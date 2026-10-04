@@ -1,0 +1,6 @@
+body { margin: 0; min-width: 300px; font: 14px system-ui, sans-serif; }
+main { padding: 18px; }
+fieldset, form { display: grid; gap: 12px; }
+label { display: block; margin-bottom: 8px; }
+button { margin: 8px 8px 0 0; }
+[role="alert"] { color: #a11; }

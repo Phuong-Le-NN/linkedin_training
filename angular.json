@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {
+    "analytics": false
+  },
+  "projects": {
+    "popup": {
+      "projectType": "application",
+      "root": "app/client/popup",
+      "sourceRoot": "app/client/popup",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": {
+              "base": "app/client/build/popup",
+              "browser": ""
+            },
+            "index": {
+              "input": "app/client/popup/popup.html",
+              "output": "index.html"
+            },
+            "browser": "app/client/popup/main.ts",
+            "tsConfig": "app/client/popup/tsconfig.json",
+            "styles": [
+              "app/client/popup/popup.css"
+            ],
+            "outputHashing": "all",
+            "optimization": {
+              "scripts": true,
+              "styles": {
+                "minify": true,
+                "inlineCritical": false
+              },
+              "fonts": false
+            },
+            "budgets": [
+              {
+                "type": "initial",
+                "maximumWarning": "350kB",
+                "maximumError": "500kB"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

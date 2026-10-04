@@ -1,0 +1,14 @@
+<main>
+    <h1>Low-Value Guard</h1>
+    <p role="status">{{ status() }}</p>
+    <fieldset [disabled]="pending()">
+        <label><input type="checkbox" [checked]="enabled()" (change)="changeEnabled($event)" /> Filter feed posts</label>
+        <label>Filter mode
+            <select [value]="mode()" (change)="changeMode($event)">
+                <option value="blur">Blur</option>
+                <option value="remove">Hide</option>
+            </select>
+        </label>
+    </fieldset>
+    <p role="alert" [hidden]="!error()">{{ error() }}</p>
+</main>
