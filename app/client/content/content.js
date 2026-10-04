@@ -1,187 +1,257 @@
-const API_URL = 'http://127.0.0.1:8000';
+const POST_SELECTOR = '[role="listitem"][componentkey^="update-card-focus"]';
+const TEXT_SELECTOR = '[data-testid="expandable-text-box"]';
+const OVERLAY_SELECTOR = '.low-value-guard-overlay';
+const MAX_CLASSIFICATION_RETRIES = 2;
+const RETRY_DELAY_MS = 2000;
+const DEBUG = false;
 
-const MAX_CONCURRENT = 4;
-const MAX_RETRIES = 2;
-const REQUEST_TIMEOUT_MS = 15_000;
+// Per-element processing state, not a cache of reusable predictions.
+const postStates = new WeakMap();
+const filterCleanups = new WeakMap();
+let postObserver;
 
-let activeRequests = 0;
-const requestQueue = [];
-
-function enqueue(task) {
-    return new Promise((resolve, reject) => {
-        requestQueue.push({ task, resolve, reject });
-        processQueue();
-    });
+function debug(...args) {
+    if (DEBUG) console.debug('[Low-Value Guard]', ...args);
 }
 
-function processQueue() {
-    console.log('[Queue]', {
-        activeRequests,
-        queuedRequests: requestQueue.length,
-        availableSlots: MAX_CONCURRENT - activeRequests
-    });
-
-    while (
-        activeRequests < MAX_CONCURRENT &&
-        requestQueue.length > 0
-    ) {
-        const job = requestQueue.shift();
-        activeRequests++;
-
-        console.log('[Queue] Starting request', {
-            activeRequests,
-            queuedRequests: requestQueue.length
-        });
-
-        job.task()
-            .then(job.resolve)
-            .catch(job.reject)
-            .finally(() => {
-                activeRequests--;
-
-                console.log('[Queue] Request finished', {
-                    activeRequests,
-                    queuedRequests: requestQueue.length,
-                    availableSlots: MAX_CONCURRENT - activeRequests
-                });
-
-                processQueue();
-            });
+function extensionAvailable() {
+    try {
+        if (chrome.runtime?.id) return true;
+    } catch {
+        // Reloading the extension invalidates existing content scripts.
     }
+    postObserver?.disconnect();
+    return false;
 }
 
-async function classifyRequest(endpoint, body) {
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-        const controller = new AbortController();
+function readPostText(post) {
+    const element = post.querySelector(TEXT_SELECTOR);
+    return (element?.innerText || element?.textContent || '').trim();
+}
 
-        const timeout = setTimeout(() => {
-            controller.abort();
-        }, REQUEST_TIMEOUT_MS);
+function isPromotedPost(post) {
+    const actor = post.querySelector('.update-components-actor__container');
+    return ['description', 'sub-description'].some(field => {
+        const text = actor?.querySelector(
+            `.update-components-actor__${field} span[aria-hidden="true"]`
+        )?.textContent || '';
+        return text.toLowerCase().includes('promoted');
+    });
+}
 
-        try {
-            const response = await fetch(`${API_URL}${endpoint}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body),
-                signal: controller.signal
-            });
+function clearPostFilter(post) {
+    const cleanup = filterCleanups.get(post);
+    filterCleanups.delete(post);
+    cleanup?.();
+}
 
-            const data = await response.json();
+function blurPostWithButton(container) {
+    const originalPosition = container.style.position;
+    const needsPosition = getComputedStyle(container).position === 'static';
+    if (needsPosition) container.style.position = 'relative';
 
-            if (response.status === 429 && attempt < MAX_RETRIES) {
-                const retryAfter =
-                    Number(response.headers.get('Retry-After')) || 1;
+    const overlay = document.createElement('div');
+    overlay.className = 'low-value-guard-overlay';
+    const button = document.createElement('button');
+    button.className = 'low-value-guard-reveal';
+    button.type = 'button';
+    button.textContent = 'Show post';
 
-                console.warn(
-                    `[Cringe Guard] Server busy. Retrying in ${retryAfter}s`
-                );
-
-                await new Promise(resolve => {
-                    setTimeout(resolve, retryAfter * 1000);
-                });
-
-                continue;
-            }
-
-            if (!response.ok) {
-                throw new Error(
-                    data.detail || `Server returned ${response.status}`
-                );
-            }
-
-            return data;
-        } finally {
-            clearTimeout(timeout);
+    const originalInertStates = new Map();
+    function disableChild(child) {
+        if (!(child instanceof HTMLElement) || child === overlay) return;
+        if (!originalInertStates.has(child)) {
+            originalInertStates.set(child, child.inert);
         }
+        child.inert = true;
+    }
+    function restoreChild(child) {
+        if (!originalInertStates.has(child)) return;
+        child.inert = originalInertStates.get(child);
+        originalInertStates.delete(child);
     }
 
-    throw new Error('Classification failed after retries');
+    Array.from(container.children).forEach(disableChild);
+    const observer = new MutationObserver(records => {
+        for (const record of records) {
+            record.addedNodes.forEach(disableChild);
+            // Do not leave a node inert if LinkedIn moves it elsewhere.
+            record.removedNodes.forEach(child => {
+                if (child.parentElement !== container) restoreChild(child);
+            });
+        }
+    });
+    observer.observe(container, { childList: true });
+
+    // Preserve the button's native focus and Enter/Space behavior.
+    for (const type of [
+        'pointerdown', 'pointerup', 'mousedown', 'mouseup',
+        'dblclick', 'contextmenu', 'keydown', 'keyup'
+    ]) {
+        overlay.addEventListener(type, event => event.stopPropagation());
+    }
+    overlay.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (button.contains(event.target)) clearPostFilter(container);
+    });
+    overlay.appendChild(button);
+    // Keep LinkedIn's existing nodes in place.
+    container.appendChild(overlay);
+
+    return () => {
+        observer.disconnect();
+        for (const child of originalInertStates.keys()) restoreChild(child);
+        overlay.remove();
+        if (needsPosition) container.style.position = originalPosition;
+    };
 }
 
-function isValidLinkedInSender(sender) {
-    return sender.url?.startsWith(
-        'https://www.linkedin.com/feed/'
-    );
+function applyPostFilter(post, mode) {
+    clearPostFilter(post);
+    if (mode === 'remove') {
+        const originalDisplay = post.style.display;
+        post.style.display = 'none';
+        filterCleanups.set(post, () => { post.style.display = originalDisplay; });
+    } else {
+        filterCleanups.set(post, blurPostWithButton(post));
+    }
+    debug('Applied filter', { mode });
 }
 
-chrome.runtime.onMessage.addListener(
-    (message, sender, sendResponse) => {
-        if (!isValidLinkedInSender(sender)) {
+async function requestClassification(text) {
+    const result = await chrome.runtime.sendMessage({
+        type: 'classifyPost',
+        text
+    });
+    if (result?.error) throw new Error(result.error);
+    if (!['useful', 'useless'].includes(result?.label)) {
+        throw new Error('Invalid classification response');
+    }
+    return result.label === 'useless';
+}
+
+function isCurrentRequest(post, state) {
+    return extensionAvailable() && post.isConnected && postStates.get(post) === state;
+}
+
+async function classifyPost(post, state) {
+    if (!isCurrentRequest(post, state)) return;
+    if (readPostText(post) !== state.text) {
+        processPost(post);
+        return;
+    }
+    state.attempts++;
+    try {
+        const isLowValue = isPromotedPost(post) || await requestClassification(state.text);
+        if (!isCurrentRequest(post, state)) return;
+        const settings = await LowValueGuardSettings.getSettings();
+        if (!isCurrentRequest(post, state)) return;
+        if (readPostText(post) !== state.text) {
+            processPost(post);
             return;
         }
-
-        if (message.type === 'classifyPost') {
-            console.log(
-                '[Cringe Guard] Queuing single classification'
-            );
-
-            enqueue(() =>
-                classifyRequest('/classify', {
-                    text: message.text
-                })
-            )
-                .then(sendResponse)
-                .catch(error => {
-                    console.error(
-                        '[Cringe Guard] Classification failed:',
-                        error
-                    );
-
-                    sendResponse({
-                        error: error.message
-                    });
-                });
-
-            return true;
+        if (settings.isEnabled && isLowValue) {
+            applyPostFilter(post, settings.filterMode);
         }
-
-        if (message.type === 'classifyPosts') {
-            if (
-                !Array.isArray(message.texts) ||
-                message.texts.length === 0
-            ) {
-                sendResponse({
-                    error: 'No posts were provided'
-                });
-
-                return true;
-            }
-
-            if (message.texts.length > 100) {
-                sendResponse({
-                    error: 'A maximum of 100 posts can be classified at once'
-                });
-
-                return true;
-            }
-
-            console.log(
-                '[Cringe Guard] Queuing batch classification',
-                {
-                    count: message.texts.length
-                }
-            );
-
-            enqueue(() =>
-                classifyRequest('/classify-batch', {
-                    texts: message.texts
-                })
-            )
-                .then(sendResponse)
-                .catch(error => {
-                    console.error(
-                        '[Cringe Guard] Batch classification failed:',
-                        error
-                    );
-
-                    sendResponse({
-                        error: error.message
-                    });
-                });
-
-            return true;
+        debug('Post processed', { isLowValue });
+    } catch (error) {
+        if (!isCurrentRequest(post, state)) return;
+        if (readPostText(post) !== state.text) {
+            processPost(post);
+            return;
+        }
+        console.error('[Low-Value Guard] Could not process post:', error);
+        if (state.attempts <= MAX_CLASSIFICATION_RETRIES) {
+            state.retryTimer = setTimeout(() => {
+                state.retryTimer = null;
+                void classifyPost(post, state);
+            }, RETRY_DELAY_MS * state.attempts);
         }
     }
-);
+}
+
+function processPost(post) {
+    if (!extensionAvailable() || !post.isConnected) return;
+    const text = readPostText(post);
+    const previous = postStates.get(post);
+    if (previous?.text === text) return;
+
+    // A recycled or edited post gets fresh processing state.
+    clearTimeout(previous?.retryTimer);
+    clearPostFilter(post);
+    if (!text) {
+        postStates.delete(post);
+        return;
+    }
+    const state = { text, attempts: 0, retryTimer: null };
+    postStates.set(post, state);
+    void classifyPost(post, state);
+}
+
+function scanExistingPosts() {
+    document.querySelectorAll(POST_SELECTOR).forEach(processPost);
+}
+
+function collectPosts(node, posts) {
+    const element = node instanceof Element ? node : node.parentElement;
+    if (!element || element.closest(OVERLAY_SELECTOR)) return;
+    const containingPost = element.closest(POST_SELECTOR);
+    if (containingPost) posts.add(containingPost);
+    element.querySelectorAll(POST_SELECTOR).forEach(post => posts.add(post));
+}
+
+function releasePost(post) {
+    clearTimeout(postStates.get(post)?.retryTimer);
+    postStates.delete(post);
+    clearPostFilter(post);
+}
+
+function observeNewPosts() {
+    postObserver = new MutationObserver(mutations => {
+        if (!extensionAvailable()) return;
+        const posts = new Set();
+        const removedPosts = new Set();
+        for (const mutation of mutations) {
+            // The target also catches text updates and removed content.
+            const element = mutation.target instanceof Element
+                ? mutation.target : mutation.target.parentElement;
+            if (element && !element.closest(OVERLAY_SELECTOR)) {
+                const containingPost = element.closest(POST_SELECTOR);
+                if (containingPost) posts.add(containingPost);
+            }
+            mutation.addedNodes.forEach(node => collectPosts(node, posts));
+            mutation.removedNodes.forEach(node => collectPosts(node, removedPosts));
+        }
+        removedPosts.forEach(post => {
+            if (!post.isConnected) releasePost(post);
+        });
+        posts.forEach(processPost);
+    });
+    postObserver.observe(document.body, {
+        childList: true,
+        characterData: true,
+        subtree: true
+    });
+}
+
+async function initExtension() {
+    if (!extensionAvailable()) return;
+    try {
+        const settings = await LowValueGuardSettings.getSettings();
+        if (!settings.isEnabled) return;
+        observeNewPosts();
+        scanExistingPosts();
+        debug('Content script initialized');
+    } catch (error) {
+        console.error('[Low-Value Guard] Initialization failed:', error);
+    }
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && (changes.isEnabled || changes.filterMode)) {
+        window.location.reload();
+    }
+});
+
+void initExtension();

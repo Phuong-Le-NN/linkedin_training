@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     enqueue(message.text)
         .then(sendResponse)
         .catch(error => {
-            console.error('[Cringe Guard] Classification failed:', error);
+            console.error('[Low-Value Guard] Classification failed:', error);
             sendResponse({ error: error.message });
         });
 
