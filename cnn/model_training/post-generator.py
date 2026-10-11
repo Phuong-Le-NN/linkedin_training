@@ -5,10 +5,10 @@ import os
 from urllib.request import Request, urlopen
 import random
 
-def generate_post(criterion, model, quality):
+def generate_post(criterion, model, quality, word_limit):
     data = json.dumps({
     "model": model,
-    "prompt": f"Write an approximately 200-word, text-only LinkedIn post with no icons that is likely to be {quality} for Linkedin users for this criteria: {criterion}",
+    "prompt": f"Make up a {word_limit}, text-only LinkedIn post with no icons that is likely to be {quality} for Linkedin users for this criteria: {criterion}",
     "stream": False,
     "options": {
     "temperature": 1.0,
@@ -25,9 +25,13 @@ def generate_post(criterion, model, quality):
         return " ".join(json.load(response)["response"].split())
 
 
-def generate_csv(iterations: int, criteria: list[str], output_path: str, model: str = "llama3.2", quality = "useless"):
+def generate_csv(iterations: int, criteria: list[str], output_path: str, model: str = "llama3.2", quality = "useless", word_limit="200-word"):
     has_content = os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
     post_idx = 1
+    if has_content:
+        with open(output_path, newline="", encoding="utf-8") as existing:
+            post_idx = sum(1 for _ in csv.reader(existing))
 
     with open(output_path, "a", newline="", encoding="utf-8") as file:
         writer = csv.writer(file)
@@ -36,7 +40,7 @@ def generate_csv(iterations: int, criteria: list[str], output_path: str, model: 
 
         with ThreadPoolExecutor(max_workers=4) as pool:
             for output in pool.map(
-                lambda criterion: generate_post(criterion, model, quality),
+                lambda criterion: generate_post(criterion, model, quality, word_limit),
                 criteria * iterations,
             ):
                 writer.writerow([post_idx, output])
@@ -76,12 +80,21 @@ usefull_criteria = [
   "Shares useful resources, documentation, research papers, tutorials, or tools and explains why they are valuable.",
   "Acknowledges limitations, uncertainty, alternative approaches, and relevant trade-offs in technical topics.",
 ]
-training_useless_path = "/Users/phuongle/IdeaProjects/linkedin_training/data/training/useless_posts.cvs"
-training_usefull_path = "/Users/phuongle/IdeaProjects/linkedin_training/data/training/usefull_posts.cvs"
-test_useless_path = "/Users/phuongle/IdeaProjects/linkedin_training/data/test/useless_posts.cvs"
-test_usefull_path = "/Users/phuongle/IdeaProjects/linkedin_training/data/test/usefull_posts.cvs"
+connection_updates = [
+  "Advertising a position hiring - Just make up a technical role",
+  "layoff updates - Just make up a technical role", 
+  "celebrate new position accepted - Just make up a technical role", 
+  "to give out referral - Just make up a technical role and how to use the referral",
+]
+training_useless_path = "./cnn/data/training/useless_posts.cvs"
+training_usefull_path = "./cnn/data/training/usefull_posts.cvs"
+test_useless_path = "./cnn/data/test/useless_posts.cvs"
+test_usefull_path = "./cnn/data/test/usefull_posts.cvs"
 
 # generate_csv(iterations, useless_criteria, test_useless_path, "llama3.2:1b", "useless")
-generate_csv(iterations, usefull_criteria, test_usefull_path, "llama3.2:1b", "usefull, non ads, concise")
-generate_csv(iterations, useless_criteria, training_usefull_path, "llama3.2:1b", "usefull, non ads, concise")
+# generate_csv(iterations, usefull_criteria, test_usefull_path, "llama3.2:1b", "usefull, non ads, concise")
+# generate_csv(iterations, useless_criteria, training_usefull_path, "llama3.2:1b", "usefull, non ads, concise")
 # generate_csv(iterations, usefull_criteria, training_useless_path, "llama3.2:1b", "useless")
+
+generate_csv(20, connection_updates, test_usefull_path, "llama3.2:1b", "usefull, non ads, concise", "100-word")
+generate_csv(20, connection_updates, training_usefull_path, "llama3.2:1b", "usefull, non ads, concise", "100-word")
