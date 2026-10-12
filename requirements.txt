@@ -41,3 +41,7 @@ tzdata==2026.5
 urllib3==2.8.0
 wheel==0.48.0
 wrapt==2.5.1
+streamlit
+fastapi
+pydantic
+uvicorn
