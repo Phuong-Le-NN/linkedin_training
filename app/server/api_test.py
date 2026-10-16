@@ -1,3 +1,4 @@
+import csv
 import threading
 import time
 
@@ -5,7 +6,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-import api
+import api, classifier, store_feedback
 
 
 class FakeTokenizer:
@@ -41,7 +42,7 @@ def reset_server_state(monkeypatch):
 
 
 def test_classify_single_post():
-    result = api.classify(["This is a useful post"])
+    result = classifier.classify(["This is a useful post"])
 
     assert len(result) == 1
     assert result[0]["label"] == "useful"
@@ -49,7 +50,7 @@ def test_classify_single_post():
 
 
 def test_classify_batch():
-    result = api.classify([
+    result = classifier.classify([
         "This is useful",
         "This is useless",
     ])
@@ -64,7 +65,7 @@ def test_classify_batch():
 
 
 def test_classify_with_limit():
-    result = api.classify_with_limit(["A post"])
+    result = classifier.classify_with_limit(["A post"])
 
     assert len(result) == 1
     assert result[0]["label"] == "useful"
@@ -128,7 +129,7 @@ def test_classify_returns_429_when_all_slots_are_busy():
 
     try:
         with pytest.raises(Exception) as error:
-            api.classify_with_limit(["A post"])
+            classifier.classify_with_limit(["A post"])
 
         assert error.value.status_code == 429
     finally:
@@ -138,7 +139,7 @@ def test_classify_returns_429_when_all_slots_are_busy():
 def test_classify_with_limit_releases_slot_after_success():
     api.classification_slots = threading.Semaphore(1)
 
-    api.classify_with_limit(["A post"])
+    classifier.classify_with_limit(["A post"])
 
     # If the slot was released, another request can acquire it
     acquired = api.classification_slots.acquire(timeout=0.1)
@@ -157,7 +158,7 @@ def test_classify_with_limit_releases_slot_after_failure(monkeypatch):
     monkeypatch.setattr(api, "classify", failing_classify)
 
     with pytest.raises(RuntimeError):
-        api.classify_with_limit(["A post"])
+        classifier.classify_with_limit(["A post"])
 
     # The slot must still be released after an exception
     acquired = api.classification_slots.acquire(timeout=0.1)
@@ -165,3 +166,26 @@ def test_classify_with_limit_releases_slot_after_failure(monkeypatch):
     assert acquired is True
 
     api.classification_slots.release()
+
+
+def test_feedback_endpoint_appends_to_separate_training_file(tmp_path, monkeypatch):
+    feedback_file = tmp_path / "feedback.csv"
+    monkeypatch.setattr(store_feedback, "feedback_file", feedback_file)
+    client = TestClient(api.app)
+
+    useful_response = client.post(
+        "/feedback", json={"text": "Useful, with a newline\ninside", "useful": True}
+    )
+    useless_response = client.post(
+        "/feedback", json={"text": "Not useful", "useful": False}
+    )
+
+    assert useful_response.status_code == 201
+    assert useful_response.json() == {"saved": True}
+    assert useless_response.status_code == 201
+    with feedback_file.open(newline="", encoding="utf-8") as file:
+        assert list(csv.reader(file)) == [
+            ["post_content", "useful"],
+            ["Useful, with a newline\ninside", "True"],
+            ["Not useful", "False"],
+        ]
