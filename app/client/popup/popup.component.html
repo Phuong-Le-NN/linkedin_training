@@ -10,5 +10,18 @@
             </select>
         </label>
     </fieldset>
+    <section aria-label="Your account">
+        @if (user(); as signedIn) {
+            <p>Signed in as {{ signedIn.email }}</p>
+            <button type="button" (click)="signOut()">Sign out</button>
+        } @else {
+            <form (submit)="authenticate($event, email, password)">
+                <label>Email <input #email type="email" autocomplete="username" required /></label>
+                <label>Password <input #password type="password" autocomplete="current-password" required /></label>
+                <button type="submit" value="sign-in" [disabled]="authPending()">Sign in</button>
+                <button type="submit" value="sign-up" [disabled]="authPending()">Create account</button>
+            </form>
+        }
+    </section>
     <p role="alert" [hidden]="!error()">{{ error() }}</p>
 </main>

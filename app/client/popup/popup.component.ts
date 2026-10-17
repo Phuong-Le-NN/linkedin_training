@@ -1,21 +1,29 @@
 import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
-
+import type { OnDestroy } from '@angular/core';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth/web-extension';
+import { auth } from '../lib/auth.js';
 @Component({
     selector: 'lvg-popup',
     standalone: true,
     templateUrl: './popup.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class PopupComponent implements OnInit {
+export class PopupComponent implements OnInit, OnDestroy {
     readonly enabled = signal(false);
     readonly mode = signal<'blur' | 'remove'>('blur');
     readonly pending = signal(false);
     readonly status = signal('Loading preferences...');
     readonly error = signal('');
+    readonly user = signal<User | null>(null);
+    readonly authPending = signal(false);
+    private unsubscribe?: () => void;
 
     ngOnInit(): void {
         void this.loadSettings();
-
+        this.unsubscribe = onAuthStateChanged(auth, (user) => {
+            this.user.set(user);
+            this.error.set('');
+        }, () => this.error.set('Could not load sign-in state.'));
     }
 
     private async loadSettings(): Promise<void> {
@@ -50,6 +58,33 @@ export class PopupComponent implements OnInit {
             this.error.set('Could not save preferences.');
         } finally {
             this.pending.set(false);
+        }
+    }
+    ngOnDestroy(): void {
+        this.unsubscribe?.();
+    }
+
+    async authenticate(event: SubmitEvent, email: HTMLInputElement, password: HTMLInputElement): Promise<void> {
+        event.preventDefault();
+        this.authPending.set(true);
+        this.error.set('');
+        try {
+            const create = (event.submitter as HTMLButtonElement | null)?.value === 'sign-up';
+            const authenticate = create ? createUserWithEmailAndPassword : signInWithEmailAndPassword;
+            await authenticate(auth, email.value.trim(), password.value);
+            email.value = password.value = '';
+        } catch {
+            this.error.set('Could not sign in or create your account.');
+        } finally {
+            this.authPending.set(false);
+        }
+    }
+
+    async signOut(): Promise<void> {
+        try {
+            await signOut(auth);
+        } catch {
+            this.error.set('Could not sign out.');
         }
     }
 
