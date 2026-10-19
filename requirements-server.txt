@@ -1,0 +1,8 @@
+fastapi
+pydantic
+uvicorn
+numpy
+ai-edge-litert
+google-cloud-firestore
+google-cloud-storage
+firebase-admin==7.7.0

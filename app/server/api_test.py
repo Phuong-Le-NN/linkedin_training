@@ -1,191 +1,201 @@
-import csv
+import json
 import threading
-import time
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-import api, classifier, store_feedback
+from app.server import api, classifier, store_feedback
+from app.server.auth import verify_firebase_token
 
 
-class FakeTokenizer:
-    def texts_to_sequences(self, texts):
-        return [[1] for _ in texts]
+class FakeInterpreter:
+    def __init__(self):
+        self.shape = None
+        self.input = None
+
+    def get_input_details(self):
+        return [{"index": 0, "dtype": np.float32}]
+
+    def resize_tensor_input(self, index, shape, strict=False):
+        self.shape = tuple(shape)
+
+    def allocate_tensors(self):
+        pass
+
+    def set_tensor(self, index, value):
+        self.input = value
+
+    def invoke(self):
+        pass
+
+    def get_output_details(self):
+        return [{"index": 1}]
+
+    def get_tensor(self, index):
+        return np.array([[0.8], [0.2]], dtype=np.float32)[: self.shape[0]]
 
 
-class FakeModel:
-    def __call__(self, x, training=False):
-        # First post useful, second post useless
-        return FakePrediction([0.8, 0.2][:len(x)])
-
-
-class FakePrediction:
-    def __init__(self, values):
-        self.values = values
-
-    def numpy(self):
-        return np.array(self.values)
-
-
-@pytest.fixture(autouse=True)
-def reset_server_state(monkeypatch):
-    """
-    Replace the real model and reset the semaphore before every test.
-    """
-    monkeypatch.setattr(api, "tokenizer", FakeTokenizer())
-    monkeypatch.setattr(api, "model", FakeModel())
-
-    api.classification_slots = threading.Semaphore(
-        api.MAX_CONCURRENT_CLASSIFICATIONS
+@pytest.fixture
+def fake_interpreter(monkeypatch):
+    fake = FakeInterpreter()
+    monkeypatch.setattr(
+        classifier,
+        "load_user_model",
+        lambda _user_id: (fake, {"this": 2, "is": 3, "useful": 4}, 1),
     )
-
-
-def test_classify_single_post():
-    result = classifier.classify(["This is a useful post"])
-
-    assert len(result) == 1
-    assert result[0]["label"] == "useful"
-    assert result[0]["useful_probability"] == 0.8
-
-
-def test_classify_batch():
-    result = classifier.classify([
-        "This is useful",
-        "This is useless",
-    ])
-
-    assert len(result) == 2
-
-    assert result[0]["label"] == "useful"
-    assert result[0]["useful_probability"] == 0.8
-
-    assert result[1]["label"] == "useless"
-    assert result[1]["useful_probability"] == 0.2
-
-
-def test_classify_with_limit():
-    result = classifier.classify_with_limit(["A post"])
-
-    assert len(result) == 1
-    assert result[0]["label"] == "useful"
-
-
-def test_single_classify_endpoint():
-    client = TestClient(api.app)
-
-    response = client.post(
-        "/classify",
-        json={"text": "This is a useful post"},
+    monkeypatch.setattr(
+        classifier, "classification_slots", threading.Semaphore(1)
     )
+    return fake
+
+
+@pytest.fixture
+def client(fake_interpreter):
+    api.app.dependency_overrides[verify_firebase_token] = (
+        lambda: {"uid": "test-user"}
+    )
+    with TestClient(api.app) as test_client:
+        yield test_client
+    api.app.dependency_overrides.clear()
+
+
+def test_user_model_cache_refreshes_only_changed_user(monkeypatch):
+    fake_bucket = MagicMock()
+    blobs = {}
+    tokenizer = {
+        "config": {
+            "word_index": json.dumps({"<OOV>": 1}),
+            "oov_token": "<OOV>",
+        }
+    }
+
+    def blob(name):
+        if name not in blobs:
+            result = MagicMock()
+            result.generation = 1
+            result.download_as_bytes.return_value = (
+                b"model" if name.endswith("model.tflite") else json.dumps(tokenizer).encode()
+            )
+            blobs[name] = result
+        return blobs[name]
+
+    fake_bucket.blob.side_effect = blob
+    fake_client = MagicMock()
+    fake_client.bucket.return_value = fake_bucket
+    monkeypatch.setattr(classifier.storage, "Client", lambda: fake_client)
+    monkeypatch.setattr(classifier, "Interpreter", lambda model_content: FakeInterpreter())
+    classifier._load_user_model.cache_clear()
+
+    first = classifier.load_user_model("user-a")
+    other = classifier.load_user_model("user-b")
+    assert classifier.load_user_model("user-a")[0] is first[0]
+
+    blobs["models/user-a/model.tflite"].generation = 2
+    assert classifier.load_user_model("user-a")[0] is not first[0]
+    assert classifier.load_user_model("user-b")[0] is other[0]
+    assert blobs["models/user-a/model.tflite"].download_as_bytes.call_count == 2
+    assert blobs["models/user-b/model.tflite"].download_as_bytes.call_count == 1
+    classifier._load_user_model.cache_clear()
+
+
+def test_classify_returns_429_when_busy(fake_interpreter):
+    slot = classifier.classification_slots
+    slot.acquire()
+
+    try:
+        with pytest.raises(HTTPException) as exc:
+            classifier.classify_with_limit(["A post"], "test-user")
+        assert exc.value.status_code == 429
+    finally:
+        slot.release()
+
+
+def test_classify_releases_slot_after_failure(fake_interpreter, monkeypatch):
+    def fail(_texts, _user_id):
+        raise RuntimeError("model failed")
+
+    monkeypatch.setattr(classifier, "classify", fail)
+
+    with pytest.raises(RuntimeError, match="model failed"):
+        classifier.classify_with_limit(["A post"], "test-user")
+
+    assert classifier.classification_slots.acquire(blocking=False)
+    classifier.classification_slots.release()
+
+
+def test_single_classify_endpoint(client):
+    response = client.post("/classify", json={"text": "This is useful"})
 
     assert response.status_code == 200
     assert response.json()["label"] == "useful"
-    assert response.json()["useful_probability"] == 0.8
+    assert response.json()["useful_probability"] == pytest.approx(0.8)
 
 
-def test_batch_classify_endpoint():
-    client = TestClient(api.app)
-
+def test_batch_classify_endpoint(client):
     response = client.post(
-        "/classify-batch",
-        json={
-            "texts": [
-                "This is useful",
-                "This is useless",
-            ]
-        },
+        "/classify-batch", json={"texts": ["Useful", "Useless"]}
     )
 
     assert response.status_code == 200
-    assert response.json() == [
-        {
-            "label": "useful",
-            "useful_probability": 0.8,
-        },
-        {
-            "label": "useless",
-            "useful_probability": 0.2,
-        },
+    assert [item["label"] for item in response.json()] == [
+        "useful", "useless"
     ]
 
 
-def test_batch_endpoint_rejects_more_than_100_posts():
-    client = TestClient(api.app)
-
+def test_batch_endpoint_rejects_more_than_100_posts(client):
     response = client.post(
-        "/classify-batch",
-        json={"texts": ["post"] * 101},
+        "/classify-batch", json={"texts": ["post"] * 101}
     )
 
     assert response.status_code == 413
 
 
-def test_classify_returns_429_when_all_slots_are_busy():
-    api.classification_slots = threading.Semaphore(1)
+def test_feedback_endpoint_saves_to_firestore(client, monkeypatch):
+    fake_db = MagicMock()
+    monkeypatch.setattr(store_feedback.firestore, "Client", lambda: fake_db)
+    text = "A useful LinkedIn post"
 
-    # Occupy the only available slot
-    api.classification_slots.acquire()
-
-    try:
-        with pytest.raises(Exception) as error:
-            classifier.classify_with_limit(["A post"])
-
-        assert error.value.status_code == 429
-    finally:
-        api.classification_slots.release()
-
-
-def test_classify_with_limit_releases_slot_after_success():
-    api.classification_slots = threading.Semaphore(1)
-
-    classifier.classify_with_limit(["A post"])
-
-    # If the slot was released, another request can acquire it
-    acquired = api.classification_slots.acquire(timeout=0.1)
-
-    assert acquired is True
-
-    api.classification_slots.release()
-
-
-def test_classify_with_limit_releases_slot_after_failure(monkeypatch):
-    api.classification_slots = threading.Semaphore(1)
-
-    def failing_classify(texts):
-        raise RuntimeError("model failed")
-
-    monkeypatch.setattr(api, "classify", failing_classify)
-
-    with pytest.raises(RuntimeError):
-        classifier.classify_with_limit(["A post"])
-
-    # The slot must still be released after an exception
-    acquired = api.classification_slots.acquire(timeout=0.1)
-
-    assert acquired is True
-
-    api.classification_slots.release()
-
-
-def test_feedback_endpoint_appends_to_separate_training_file(tmp_path, monkeypatch):
-    feedback_file = tmp_path / "feedback.csv"
-    monkeypatch.setattr(store_feedback, "feedback_file", feedback_file)
-    client = TestClient(api.app)
-
-    useful_response = client.post(
-        "/feedback", json={"text": "Useful, with a newline\ninside", "useful": True}
-    )
-    useless_response = client.post(
-        "/feedback", json={"text": "Not useful", "useful": False}
+    response = client.post(
+        "/feedback", json={"text": text, "useful": True}
     )
 
-    assert useful_response.status_code == 201
-    assert useful_response.json() == {"saved": True}
-    assert useless_response.status_code == 201
-    with feedback_file.open(newline="", encoding="utf-8") as file:
-        assert list(csv.reader(file)) == [
-            ["post_content", "useful"],
-            ["Useful, with a newline\ninside", "True"],
-            ["Not useful", "False"],
-        ]
+    assert response.status_code == 201
+    assert response.json() == {"saved": True}
+    fake_db.collection.assert_called_once_with("feedback")
+    fake_db.collection.return_value.document.assert_called_once_with(
+        store_feedback.post_id("test-user\0" + text)
+    )
+
+    saved_data = (
+        fake_db.collection.return_value.document.return_value.set.call_args
+    )
+    assert saved_data.args[0]["text"] == text
+    assert saved_data.args[0]["useful"] is True
+    assert saved_data.args[0]["user_id"] == "test-user"
+
+
+def test_post_id_normalizes_whitespace():
+    assert store_feedback.post_id(
+        "Same  post\ncontent"
+    ) == store_feedback.post_id("Same post content")
+
+
+def test_feedback_count_uses_authenticated_user(client, monkeypatch):
+    fake_db = MagicMock()
+    fake_db.collection.return_value.where.return_value.count.return_value.get.return_value = [
+        [MagicMock(value=3)]
+    ]
+    monkeypatch.setattr(store_feedback.firestore, "Client", lambda: fake_db)
+
+    response = client.get("/feedback/count?user_id=another-user")
+
+    assert response.json() == {"count": 3}
+    field_filter = fake_db.collection.return_value.where.call_args.kwargs["filter"]
+    assert field_filter.value == "test-user"
+
+
+def test_train_reports_unavailable(client):
+    assert client.post("/train").status_code == 501
