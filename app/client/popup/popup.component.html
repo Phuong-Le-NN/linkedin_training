@@ -23,5 +23,6 @@
             </form>
         }
     </section>
+    <button type="button" [disabled]="!user() || pending()" (click)="countFeedback()">Count saved feedback</button>
     <p role="alert" [hidden]="!error()">{{ error() }}</p>
 </main>

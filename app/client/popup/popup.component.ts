@@ -88,5 +88,31 @@ export class PopupComponent implements OnInit, OnDestroy {
         }
     }
 
+    countFeedback(): Promise<void> {
+        return this.runUserAction('/feedback/count', 'GET');
+    }
+
+    private async runUserAction(path: string, method: string): Promise<void> {
+        const user = this.user();
+        if (!user || this.pending()) return;
+        this.pending.set(true);
+        this.error.set('');
+        try {
+            const response = await fetch('http://127.0.0.1:8000' + path, {
+                method,
+                headers: { Authorization: `Bearer ${await user.getIdToken()}` }
+            });
+            const result = await response.json() as { detail?: string; count?: number };
+            if (!response.ok) throw new Error(result.detail || 'Request failed.');
+            if (auth.currentUser?.uid !== user.uid) return;
+            this.status.set(path === '/feedback/count'
+                ? `${result.count} feedback posts saved.`
+                : 'Training submitted. The model will be available when the build succeeds.');
+        } catch (error) {
+            this.error.set(error instanceof Error ? error.message : 'Request failed.');
+        } finally {
+            this.pending.set(false);
+        }
+    }
 
 }

@@ -10,7 +10,8 @@ const requestQueue = [];
 async function authorizationHeaders() {
     await auth.authStateReady();
     const user = auth.currentUser;
-    return user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {};
+    if (!user) throw new Error('Sign in to use Low-Value Guard.');
+    return { Authorization: `Bearer ${await user.getIdToken()}` };
 }
 
 function enqueue(text) {
