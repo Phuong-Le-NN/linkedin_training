@@ -197,5 +197,31 @@ def test_feedback_count_uses_authenticated_user(client, monkeypatch):
     assert field_filter.value == "test-user"
 
 
-def test_train_reports_unavailable(client):
-    assert client.post("/train").status_code == 501
+def test_train_submits_only_authenticated_user(client, monkeypatch):
+    submit = MagicMock(return_value={
+        "status": "submitted",
+        "build_id": "build-123",
+        "log_url": "https://console.cloud.google.com/cloud-build/builds/build-123",
+        "operation_name": "operations/op-123",
+    })
+    monkeypatch.setattr(api, "submit_training", submit)
+
+    response = client.post(
+        "/train?user_id=another-user", json={"user_id": "another-user"}
+    )
+
+    assert response.status_code == 202
+    assert response.json()["build_id"] == "build-123"
+    submit.assert_called_once_with("test-user")
+
+
+def test_train_preserves_submission_error(client, monkeypatch):
+    submit = MagicMock(side_effect=HTTPException(
+        status_code=503, detail="Training is not configured."
+    ))
+    monkeypatch.setattr(api, "submit_training", submit)
+
+    response = client.post("/train")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Training is not configured."}

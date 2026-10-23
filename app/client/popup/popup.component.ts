@@ -92,6 +92,10 @@ export class PopupComponent implements OnInit, OnDestroy {
         return this.runUserAction('/feedback/count', 'GET');
     }
 
+    trainModel(): Promise<void> {
+        return this.runUserAction('/train', 'POST');
+    }
+
     private async runUserAction(path: string, method: string): Promise<void> {
         const user = this.user();
         if (!user || this.pending()) return;

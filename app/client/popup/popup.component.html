@@ -24,5 +24,6 @@
         }
     </section>
     <button type="button" [disabled]="!user() || pending()" (click)="countFeedback()">Count saved feedback</button>
+    <button type="button" [disabled]="!user() || pending()" (click)="trainModel()">Train my model</button>
     <p role="alert" [hidden]="!error()">{{ error() }}</p>
 </main>

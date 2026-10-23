@@ -13,7 +13,7 @@ steps:
           scikit-learn==1.9.1 \
           google-cloud-firestore \
           google-cloud-storage
-        python scripts/train_user.py
+        python app/model_training/train_with_feedback.py
 
 timeout: 1800s
 options:
