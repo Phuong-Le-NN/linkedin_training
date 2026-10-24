@@ -1,4 +1,5 @@
 import { auth } from '../lib/auth.js';
+import { API_BASE_URL } from '../lib/api_config.js';
 
 const MAX_CONCURRENT = 4;
 const MAX_RETRIES = 2;
@@ -46,7 +47,7 @@ async function classifyWithRetry(text) {
 
         try {
             const response = await fetch(
-                'http://127.0.0.1:8000/classify',
+                `${API_BASE_URL}/classify`,
                 {
                     method: 'POST',
                     headers: {
@@ -82,7 +83,7 @@ async function classifyWithRetry(text) {
 }
 
 async function saveFeedback(text, useful) {
-    const response = await fetch('http://127.0.0.1:8000/feedback', {
+    const response = await fetch(`${API_BASE_URL}/feedback`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',

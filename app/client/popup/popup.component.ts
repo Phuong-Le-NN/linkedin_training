@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/cor
 import type { OnDestroy } from '@angular/core';
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth/web-extension';
 import { auth } from '../lib/auth.js';
+import { API_BASE_URL } from '../lib/api_config.js';
 @Component({
     selector: 'lvg-popup',
     standalone: true,
@@ -102,7 +103,7 @@ export class PopupComponent implements OnInit, OnDestroy {
         this.pending.set(true);
         this.error.set('');
         try {
-            const response = await fetch('http://127.0.0.1:8000' + path, {
+            const response = await fetch(API_BASE_URL + path, {
                 method,
                 headers: { Authorization: `Bearer ${await user.getIdToken()}` }
             });
