@@ -1,5 +1,7 @@
 import json
 import re
+from io import BytesIO
+from zipfile import ZipFile
 from functools import lru_cache
 from threading import Semaphore
 
@@ -17,14 +19,30 @@ classification_slots = Semaphore(MAX_CONCURRENT_CLASSIFICATIONS)
 
 
 def load_user_model(user_id):
-    model_blob = storage.Client().bucket(MODEL_BUCKET).blob(
-        f"models/{user_id}/model.tflite"
-    )
+    bucket = storage.Client().bucket(MODEL_BUCKET)
+    bundle_blob = bucket.blob(f"models/{user_id}/model.bundle.zip")
     try:
-        model_blob.reload()
-    except NotFound as exc:
-        raise HTTPException(status_code=404, detail="No model for this user") from exc
-    return _load_user_model(user_id, model_blob.generation)
+        bundle_blob.reload()
+    except NotFound:
+        # Models uploaded before the bundle format remain readable.
+        model_blob = bucket.blob(f"models/{user_id}/model.tflite")
+        try:
+            model_blob.reload()
+        except NotFound as exc:
+            raise HTTPException(status_code=404, detail="No model for this user") from exc
+        return _load_user_model(user_id, model_blob.generation)
+    return _load_bundle_model(user_id, bundle_blob.generation)
+
+
+@lru_cache(maxsize=32)
+def _load_bundle_model(user_id, _generation):
+    bundle_bytes = storage.Client().bucket(MODEL_BUCKET).blob(
+        f"models/{user_id}/model.bundle.zip"
+    ).download_as_bytes()
+    with ZipFile(BytesIO(bundle_bytes)) as archive:
+        return _make_interpreter(
+            archive.read("model.tflite"), archive.read("tokenizer.json")
+        )
 
 
 @lru_cache(maxsize=32)
@@ -38,6 +56,10 @@ def _load_user_model(user_id, _generation):
     except NotFound as exc:
         raise HTTPException(status_code=404, detail="No model for this user") from exc
 
+    return _make_interpreter(model_bytes, tokenizer_bytes)
+
+
+def _make_interpreter(model_bytes, tokenizer_bytes):
     config = json.loads(tokenizer_bytes)["config"]
     word_index = json.loads(config["word_index"])
     oov_index = word_index[config["oov_token"]]

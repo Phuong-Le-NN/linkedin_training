@@ -2,6 +2,8 @@
 
 import os
 import re
+from io import BytesIO
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import numpy as np
 import tensorflow as tf
@@ -34,17 +36,18 @@ def main():
         .limit(1000)
     )
     rows = [doc.to_dict() for doc in query.stream()]
-    if len(rows) < 3:
-        raise ValueError(f"Need at least 3 feedback posts; found {len(rows)}")
+    if not rows:
+        raise ValueError("Need at least 1 feedback post")
 
     texts = [
         " ".join(re.findall(r"\b\w+\b", row["text"].lower()))
         for row in rows
     ]
+    if not any(texts):
+        raise ValueError("Need a feedback post containing words")
+
     labels = np.array([int(row["useful"]) for row in rows])
     label_counts = np.bincount(labels, minlength=2)
-    if label_counts.min() < 1:
-        raise ValueError("Need at least one post with each label")
 
     train_texts, y_train = texts, labels
     use_validation = len(rows) >= 10 and label_counts.min() >= 2
@@ -96,15 +99,16 @@ def main():
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
     model_bytes = converter.convert()
 
-    bucket = storage.Client().bucket(bucket_name)
-    prefix = f"models/{user_id}"
-    bucket.blob(f"{prefix}/tokenizer.json").upload_from_string(
-        tokenizer.to_json(), content_type="application/json"
+    bundle = BytesIO()
+    with ZipFile(bundle, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("model.tflite", model_bytes)
+        archive.writestr("tokenizer.json", tokenizer.to_json())
+
+    path = f"models/{user_id}/model.bundle.zip"
+    storage.Client().bucket(bucket_name).blob(path).upload_from_string(
+        bundle.getvalue(), content_type="application/zip"
     )
-    bucket.blob(f"{prefix}/model.tflite").upload_from_string(
-        model_bytes, content_type="application/octet-stream"
-    )
-    print(f"Uploaded {prefix}/model.tflite and tokenizer.json")
+    print(f"Uploaded {path}")
 
 
 if __name__ == "__main__":

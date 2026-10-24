@@ -1,5 +1,7 @@
 import json
 import threading
+from io import BytesIO
+from zipfile import ZipFile
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -76,6 +78,8 @@ def test_user_model_cache_refreshes_only_changed_user(monkeypatch):
         if name not in blobs:
             result = MagicMock()
             result.generation = 1
+            if name.endswith("model.bundle.zip"):
+                result.reload.side_effect = classifier.NotFound("No bundle")
             result.download_as_bytes.return_value = (
                 b"model" if name.endswith("model.tflite") else json.dumps(tokenizer).encode()
             )
@@ -99,6 +103,44 @@ def test_user_model_cache_refreshes_only_changed_user(monkeypatch):
     assert blobs["models/user-a/model.tflite"].download_as_bytes.call_count == 2
     assert blobs["models/user-b/model.tflite"].download_as_bytes.call_count == 1
     classifier._load_user_model.cache_clear()
+
+
+def test_bundle_model_loads_as_one_version(monkeypatch):
+    bundle = BytesIO()
+    with ZipFile(bundle, "w") as archive:
+        archive.writestr("model.tflite", b"bundled-model")
+        archive.writestr("tokenizer.json", json.dumps({
+            "config": {
+                "word_index": json.dumps({"<OOV>": 1, "bundled": 2}),
+                "oov_token": "<OOV>",
+            },
+        }))
+
+    bundle_blob = MagicMock(generation=1)
+    bundle_blob.download_as_bytes.return_value = bundle.getvalue()
+    bucket = MagicMock()
+    bucket.blob.return_value = bundle_blob
+    storage_client = MagicMock()
+    storage_client.bucket.return_value = bucket
+    monkeypatch.setattr(classifier.storage, "Client", lambda: storage_client)
+    interpreter = MagicMock()
+    monkeypatch.setattr(
+        classifier, "Interpreter",
+        lambda model_content: (model_content, interpreter),
+    )
+    classifier._load_bundle_model.cache_clear()
+
+    first = classifier.load_user_model("bundled-user")
+    assert first[0][0] == b"bundled-model"
+    assert first[1]["bundled"] == 2
+    assert classifier.load_user_model("bundled-user") is first
+
+    bundle_blob.generation = 2
+    second = classifier.load_user_model("bundled-user")
+    assert second is not first
+    assert second[0][0] == b"bundled-model"
+    assert bundle_blob.download_as_bytes.call_count == 2
+    classifier._load_bundle_model.cache_clear()
 
 
 def test_classify_returns_429_when_busy(fake_interpreter):
