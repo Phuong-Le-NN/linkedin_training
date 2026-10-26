@@ -48,13 +48,46 @@ def generate_csv(iterations: int, criteria: list[str], output_path: str, model: 
 
 connection_updates = [
   "Advertising a position hiring - Just make up a technical role",
-  "layoff updates - Just make up a technical role", 
-  "celebrate new position accepted - Just make up a technical role", 
-  "to give out referral - Just make up a technical role and how to use the referral",
+  "layoff/resign updates - Just make up a technical role",
+  "celebrate new position accepted - Just make up a technical role",
+  "to give out referral - Just make up a technical role and company and say that is giving out referral - if interested DM with experience to be considered",
+  "company or organization update - just make up some milestones such as funding round achievement, going IPO, etc",
 ]
-training_usefull_path = "./ml/data/training/usefull_posts.cvs"
-test_usefull_path = "./ml/data/test/usefull_posts.cvs"
+useless_criteria = [
+    "brain-rot AI posts",
+    "oversharing emotional story with no main message",
+    "attempt to create viral, full of hyped terms and lengthy writing but no actual value"
+    "rage bait content, not suitable for professional setting",
+    "just make up some post that is usually not suitable for professional setting"
+]
+
+training_useful_path = "./ml/data/useful_posts.csv"
+training_useless_path = "./ml/data/useless_posts.csv"
 
 #sample caller generating useful path
-generate_csv(20, connection_updates, test_usefull_path, "llama3.2:1b", "usefull, non ads, concise", "100-word")
-generate_csv(20, connection_updates, training_usefull_path, "llama3.2:1b", "usefull, non ads, concise", "100-word")
+# generate_csv(20, connection_updates, training_useful_path, "llama3.2:1b", "useful, non ads, concise", "100-word")
+# generate_csv(20, connection_updates, training_useless_path, "llama3.2:1b", "useless, time-wasting if read", "100-word")
+
+
+jobs = [
+    (training_useful_path, "useful, non ads, concise"),
+    (training_useless_path, "useless, time-wasting if read"),
+]
+
+with ThreadPoolExecutor(max_workers=2) as pool:
+    futures = [
+        pool.submit(
+            generate_csv,
+            20,
+            connection_updates,
+            path,
+            "llama3.2:1b",
+            quality,
+            "100-word",
+        )
+        for path, quality in jobs
+    ]
+
+    # Re-raises any errors from either generation run.
+    for future in futures:
+        future.result()
