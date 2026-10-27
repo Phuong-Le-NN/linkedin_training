@@ -8,6 +8,7 @@
         {
             "js": [
                 "lib/settings.js",
+                "content/feedback.js",
                 "content/content.js"
             ],
             "matches": [
@@ -19,10 +20,13 @@
         }
     ],
     "background": {
-        "service_worker": "background/service_worker.js"
+        "service_worker": "build/service_worker.js",
+        "type": "module"
     },
     "host_permissions": [
-        "http://127.0.0.1/*"
+        "http://127.0.0.1/*",
+        "https://identitytoolkit.googleapis.com/*",
+        "https://securetoken.googleapis.com/*"
     ],
     "icons": {
         "16": "icon.png",

@@ -1,4 +1,57 @@
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth/web-extension';
+import { auth } from '../lib/auth.js';
+
 document.addEventListener('DOMContentLoaded', async () => {
+    const signInForm = document.getElementById('sign-in-form');
+    const signOutButton = document.getElementById('sign-out-button');
+    const authStatus = document.getElementById('auth-status');
+    const authError = document.getElementById('auth-error');
+
+    onAuthStateChanged(auth, user => {
+        authError.hidden = true;
+        authStatus.textContent = user ? `Signed in as ${user.email || 'your account'}` : 'Sign in to your account.';
+        signInForm.hidden = Boolean(user);
+        signOutButton.hidden = !user;
+        if (user) signInForm.reset();
+    }, error => {
+        console.error('[Low-Value Guard] Authentication unavailable:', error);
+        authStatus.textContent = 'Could not load your sign-in state.';
+    });
+
+    signInForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        authError.hidden = true;
+        const button = signInForm.querySelector('button');
+        button.disabled = true;
+        try {
+            await signInWithEmailAndPassword(
+                auth,
+                signInForm.elements.email.value.trim(),
+                signInForm.elements.password.value
+            );
+        } catch (error) {
+            console.error('[Low-Value Guard] Sign-in failed:', error);
+            authError.textContent = 'Could not sign in. Check your email and password.';
+            authError.hidden = false;
+        } finally {
+            button.disabled = false;
+        }
+    });
+
+    signOutButton.addEventListener('click', async () => {
+        authError.hidden = true;
+        signOutButton.disabled = true;
+        try {
+            await signOut(auth);
+        } catch (error) {
+            console.error('[Low-Value Guard] Sign-out failed:', error);
+            authError.textContent = 'Could not sign out. Please try again.';
+            authError.hidden = false;
+        } finally {
+            signOutButton.disabled = false;
+        }
+    });
+
     const settingsApi = globalThis.LowValueGuardSettings;
     const controls = document.getElementById('controls');
     const toggle = document.getElementById('toggle-switch');

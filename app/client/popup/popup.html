@@ -25,6 +25,20 @@
             <p class="intro-copy">Make room for posts worth your attention.</p>
         </section>
 
+        <section class="auth-section" aria-labelledby="auth-title">
+            <h2 id="auth-title">Your account</h2>
+            <p id="auth-status" class="auth-status" role="status">Checking sign-in…</p>
+            <form id="sign-in-form" hidden>
+                <label for="email">Email</label>
+                <input id="email" name="email" type="email" autocomplete="username" required>
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" autocomplete="current-password" required>
+                <button type="submit">Sign in</button>
+            </form>
+            <button id="sign-out-button" type="button" hidden>Sign out</button>
+            <p id="auth-error" class="error-message" role="alert" hidden></p>
+        </section>
+
         <fieldset id="controls" class="controls" disabled>
             <legend class="sr-only">Feed filtering settings</legend>
 
@@ -80,6 +94,6 @@
         </footer>
     </main>
     <script src="../lib/settings.js"></script>
-    <script src="./popup.js"></script>
+    <script type="module" src="../build/popup.js"></script>
 </body>
 </html>

@@ -45,3 +45,5 @@ streamlit
 fastapi
 pydantic
 uvicorn
+ai-edge-litert
+google-cloud-firestore

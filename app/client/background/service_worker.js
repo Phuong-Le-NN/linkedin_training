@@ -1,9 +1,17 @@
+import { auth } from '../lib/auth.js';
+
 const MAX_CONCURRENT = 4;
 const MAX_RETRIES = 2;
 const REQUEST_TIMEOUT_MS = 15_000;
 
 let activeRequests = 0;
 const requestQueue = [];
+
+async function authorizationHeaders() {
+    await auth.authStateReady();
+    const user = auth.currentUser;
+    return user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {};
+}
 
 function enqueue(text) {
     return new Promise((resolve, reject) => {
@@ -41,7 +49,8 @@ async function classifyWithRetry(text) {
                 {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type': 'application/json',
+                        ...await authorizationHeaders()
                     },
                     body: JSON.stringify({ text }),
                     signal: controller.signal
@@ -71,18 +80,38 @@ async function classifyWithRetry(text) {
     }
 }
 
+async function saveFeedback(text, useful) {
+    const response = await fetch('http://127.0.0.1:8000/feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...await authorizationHeaders()
+        },
+        body: JSON.stringify({ text, useful })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+        throw new Error(data.detail || `Server returned ${response.status}`);
+    }
+    return data;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (
-        message.type !== 'classifyPost' ||
-        !sender.url?.startsWith('https://www.linkedin.com/feed/')
-    ) {
+    if (!sender.url?.startsWith('https://www.linkedin.com/feed/')) return;
+
+    let request;
+    if (message.type === 'classifyPost') {
+        request = enqueue(message.text);
+    } else if (message.type === 'saveFeedback') {
+        request = saveFeedback(message.text, message.useful);
+    } else {
         return;
     }
 
-    enqueue(message.text)
+    request
         .then(sendResponse)
         .catch(error => {
-            console.error('[Low-Value Guard] Classification failed:', error);
+            console.error('[Low-Value Guard] Request failed:', error);
             sendResponse({ error: error.message });
         });
 

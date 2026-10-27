@@ -9,6 +9,7 @@ const DEBUG = false;
 const postStates = new WeakMap();
 const filterCleanups = new WeakMap();
 let postObserver;
+let classificationEnabled = false;
 
 function debug(...args) {
     if (DEBUG) console.debug('[Low-Value Guard]', ...args);
@@ -175,18 +176,23 @@ function processPost(post) {
     if (!extensionAvailable() || !post.isConnected) return;
     const text = readPostText(post);
     const previous = postStates.get(post);
-    if (previous?.text === text) return;
+    if (previous?.text === text) {
+        LowValueGuardFeedback.addButtons(post, text);
+        return;
+    }
 
     // A recycled or edited post gets fresh processing state.
     clearTimeout(previous?.retryTimer);
     clearPostFilter(post);
+    LowValueGuardFeedback.removeButtons(post);
     if (!text) {
         postStates.delete(post);
         return;
     }
+    LowValueGuardFeedback.addButtons(post, text);
     const state = { text, attempts: 0, retryTimer: null };
     postStates.set(post, state);
-    void classifyPost(post, state);
+    if (classificationEnabled) void classifyPost(post, state);
 }
 
 function scanExistingPosts() {
@@ -239,7 +245,7 @@ async function initExtension() {
     if (!extensionAvailable()) return;
     try {
         const settings = await LowValueGuardSettings.getSettings();
-        if (!settings.isEnabled) return;
+        classificationEnabled = settings.isEnabled;
         observeNewPosts();
         scanExistingPosts();
         debug('Content script initialized');
