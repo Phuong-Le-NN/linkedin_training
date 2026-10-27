@@ -1,39 +1,71 @@
-document.addEventListener("DOMContentLoaded", async () => {
-    const settingsApi = globalThis.CringeGuardSettings;
-    const toggleSwitch = document.getElementById("toggle-switch");
-    const toggleSlider = document.querySelector(".toggle-slider");
-    const modeDescription = document.getElementById("mode-description");
+document.addEventListener('DOMContentLoaded', async () => {
+    const settingsApi = globalThis.LowValueGuardSettings;
+    const controls = document.getElementById('controls');
+    const toggle = document.getElementById('toggle-switch');
+    const status = document.getElementById('filter-status');
+    const description = document.getElementById('mode-description');
+    const errorMessage = document.getElementById('popup-error');
+    const modeInputs = [...document.querySelectorAll('input[name="filter-mode"]')];
+    let settings;
 
-    function renderFilterMode(mode) {
-        toggleSlider.classList.toggle("blur", mode === "blur");
-        toggleSlider.classList.toggle("remove", mode === "remove");
-        modeDescription.textContent = mode === "remove"
-            ? "Vanish cringe completely"
-            : "Blurs cringe until you decide";
+    function render() {
+        toggle.checked = settings.isEnabled;
+        document.body.dataset.enabled = String(settings.isEnabled);
+        status.textContent = settings.isEnabled ? 'Filtering is on' : 'Filtering is paused';
+        modeInputs.forEach(input => {
+            input.checked = input.value === settings.filterMode;
+        });
+        description.textContent = settings.filterMode === 'remove'
+            ? 'Filtered posts are hidden from your feed.'
+            : 'Select “Show post” to reveal a blurred post.';
     }
 
-    const [settings, stats] = await Promise.all([
-        settingsApi.getSettings(),
-        chrome.storage.sync.get({ cringeCount: 0, timeSavedInMinutes: 0 }),
-    ]);
+    function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.hidden = false;
+    }
 
-    toggleSwitch.checked = settings.isEnabled;
-    renderFilterMode(settings.filterMode);
-    document.getElementById("cringe-count").textContent = stats.cringeCount;
-    document.getElementById("time-saved").textContent = `${Math.ceil(stats.timeSavedInMinutes)}m`;
+    async function save(changes) {
+        controls.disabled = true;
+        errorMessage.hidden = true;
+        try {
+            settings = await settingsApi.updateSettings(changes);
+        } catch (error) {
+            console.error('[Low-Value Guard] Could not save settings:', error);
+            showError('Could not save your changes. Please try again.');
+        } finally {
+            render();
+            controls.disabled = false;
+        }
+    }
 
-    toggleSwitch.addEventListener("change", () => {
-        settingsApi.updateSettings({ isEnabled: toggleSwitch.checked });
+    document.getElementById('settings-button').addEventListener('click', async () => {
+        try {
+            await chrome.runtime.openOptionsPage();
+        } catch (error) {
+            console.error('[Low-Value Guard] Could not open settings:', error);
+            showError('Could not open settings. Please try again.');
+        }
     });
 
-    toggleSlider.addEventListener("click", async () => {
-        const current = await settingsApi.getSettings();
-        const filterMode = current.filterMode === "blur" ? "remove" : "blur";
-        renderFilterMode(filterMode);
-        await settingsApi.updateSettings({ filterMode });
+    try {
+        settings = await settingsApi.getSettings();
+        render();
+        controls.disabled = false;
+    } catch (error) {
+        console.error('[Low-Value Guard] Could not load settings:', error);
+        status.textContent = 'Settings unavailable';
+        showError('Could not load your preferences. Close and reopen this popup to retry.');
+        return;
+    }
+
+    toggle.addEventListener('change', () => {
+        void save({ isEnabled: toggle.checked });
     });
 
-    document.querySelector(".settings-icon").addEventListener("click", () => {
-        chrome.runtime.openOptionsPage();
+    modeInputs.forEach(input => {
+        input.addEventListener('change', () => {
+            if (input.checked) void save({ filterMode: input.value });
+        });
     });
 });

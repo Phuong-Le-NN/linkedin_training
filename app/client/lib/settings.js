@@ -22,5 +22,5 @@
         return getSettings();
     }
 
-    globalThis.CringeGuardSettings = Object.freeze({ getSettings, updateSettings });
+    globalThis.LowValueGuardSettings = Object.freeze({ getSettings, updateSettings });
 })();
