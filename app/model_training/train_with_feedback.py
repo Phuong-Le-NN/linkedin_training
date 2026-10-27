@@ -25,17 +25,19 @@ from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.utils import pad_sequences
 
 
-def main():
-    user_id = os.environ["USER_ID"]
-    bucket_name = os.environ["MODEL_BUCKET"]
-
+def load_feedback(user_id):
     query = (
         firestore.Client()
         .collection("feedback")
         .where(filter=FieldFilter("user_id", "==", user_id))
-        .limit(1000)
     )
-    rows = [doc.to_dict() for doc in query.stream()]
+    return [doc.to_dict() for doc in query.stream()]
+
+
+def main():
+    user_id = os.environ["USER_ID"]
+    bucket_name = os.environ["MODEL_BUCKET"]
+    rows = load_feedback(user_id)
     if not rows:
         raise ValueError("Need at least 1 feedback post")
 

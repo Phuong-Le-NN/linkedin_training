@@ -6,10 +6,22 @@ from unittest.mock import MagicMock
 from app.model_training import train_with_feedback
 
 
+def test_loads_all_feedback_including_records_beyond_old_cutoff(monkeypatch):
+    db = MagicMock()
+    posts = [{"text": f"Post {index}", "useful": bool(index % 2)} for index in range(2001)]
+    db.collection.return_value.where.return_value.stream.return_value = [
+        SimpleNamespace(to_dict=lambda post=post: post) for post in posts
+    ]
+    monkeypatch.setattr(train_with_feedback.firestore, "Client", lambda: db)
+    assert train_with_feedback.load_feedback("test-user") == posts
+    field_filter = db.collection.return_value.where.call_args.kwargs["filter"]
+    assert field_filter.value == "test-user"
+
+
 def test_train_with_one_post(monkeypatch):
     posts = [{"text": "A useful post about Python", "useful": True}]
     db = MagicMock()
-    db.collection.return_value.where.return_value.limit.return_value.stream.return_value = [
+    db.collection.return_value.where.return_value.stream.return_value = [
         SimpleNamespace(to_dict=lambda post=post: post) for post in posts
     ]
     bucket = MagicMock()
