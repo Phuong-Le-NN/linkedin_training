@@ -1,40 +1,85 @@
-import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth/web-extension';
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth/web-extension';
 import { auth } from '../lib/auth.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const signInForm = document.getElementById('sign-in-form');
+    const authForm = document.getElementById('auth-form');
     const signOutButton = document.getElementById('sign-out-button');
     const authStatus = document.getElementById('auth-status');
     const authError = document.getElementById('auth-error');
+    const countButton = document.getElementById('feedback-count-button');
+    const trainButton = document.getElementById('train-model-button');
+    const trainingStatus = document.getElementById('training-status');
 
     onAuthStateChanged(auth, user => {
         authError.hidden = true;
-        authStatus.textContent = user ? `Signed in as ${user.email || 'your account'}` : 'Sign in to your account.';
-        signInForm.hidden = Boolean(user);
+        authStatus.textContent = user ? `Signed in as ${user.email || 'your account'}` : 'Sign in to filter posts.';
+        authForm.hidden = Boolean(user);
         signOutButton.hidden = !user;
-        if (user) signInForm.reset();
+        countButton.disabled = trainButton.disabled = !user;
+        trainingStatus.textContent = '';
+        if (user) authForm.reset();
     }, error => {
         console.error('[Low-Value Guard] Authentication unavailable:', error);
         authStatus.textContent = 'Could not load your sign-in state.';
     });
 
-    signInForm.addEventListener('submit', async event => {
+    async function runUserAction(path, method = 'GET') {
+        const user = auth.currentUser;
+        if (!user) return;
+        countButton.disabled = trainButton.disabled = true;
+        trainingStatus.textContent = 'Loading…';
+        try {
+            const response = await fetch(`http://127.0.0.1:8000${path}`, {
+                method,
+                headers: { Authorization: `Bearer ${await user.getIdToken()}` }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Request failed.');
+            if (auth.currentUser?.uid !== user.uid) return;
+            if (path === '/feedback/count') {
+                trainingStatus.textContent = `${data.count} feedback posts saved.`;
+            } else {
+                trainingStatus.textContent = 'Training started. The model will be available when the build finishes.';
+                if (data.build_id) {
+                    const link = document.createElement('a');
+                    link.href = `https://console.cloud.google.com/cloud-build/builds/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = ' View build';
+                    trainingStatus.append(link);
+                }
+            }
+        } catch (error) {
+            if (auth.currentUser?.uid === user.uid) trainingStatus.textContent = error.message;
+        } finally {
+            countButton.disabled = trainButton.disabled = !auth.currentUser;
+        }
+    }
+
+    countButton.addEventListener('click', () => { void runUserAction('/feedback/count'); });
+    trainButton.addEventListener('click', () => { void runUserAction('/train', 'POST'); });
+
+    authForm.addEventListener('submit', async event => {
         event.preventDefault();
         authError.hidden = true;
-        const button = signInForm.querySelector('button');
-        button.disabled = true;
+        const signingUp = event.submitter?.value === 'sign-up';
+        const buttons = authForm.querySelectorAll('button[type="submit"]');
+        buttons.forEach(button => { button.disabled = true; });
         try {
-            await signInWithEmailAndPassword(
+            const authenticate = signingUp ? createUserWithEmailAndPassword : signInWithEmailAndPassword;
+            await authenticate(
                 auth,
-                signInForm.elements.email.value.trim(),
-                signInForm.elements.password.value
+                authForm.elements.email.value.trim(),
+                authForm.elements.password.value
             );
         } catch (error) {
-            console.error('[Low-Value Guard] Sign-in failed:', error);
-            authError.textContent = 'Could not sign in. Check your email and password.';
+            console.error('[Low-Value Guard] Authentication failed:', error);
+            authError.textContent = signingUp
+                ? 'Could not create an account. Check your email and password.'
+                : 'Could not sign in. Check your email and password.';
             authError.hidden = false;
         } finally {
-            button.disabled = false;
+            buttons.forEach(button => { button.disabled = false; });
         }
     });
 

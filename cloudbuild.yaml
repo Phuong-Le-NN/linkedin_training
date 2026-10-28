@@ -1,0 +1,20 @@
+steps:
+  - name: python:3.12-slim
+    entrypoint: bash
+    env:
+      - USER_ID=${_USER_ID}
+      - MODEL_BUCKET=linkedin-training-512914-models
+    args:
+      - -ceu
+      - |
+        pip install --no-cache-dir \
+          tensorflow==2.21.0 \
+          gensim==4.4.0 \
+          scikit-learn==1.9.1 \
+          google-cloud-firestore \
+          google-cloud-storage
+        python scripts/train_user.py
+
+timeout: 1800s
+options:
+  logging: CLOUD_LOGGING_ONLY

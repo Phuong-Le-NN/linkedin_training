@@ -28,14 +28,18 @@
         <section class="auth-section" aria-labelledby="auth-title">
             <h2 id="auth-title">Your account</h2>
             <p id="auth-status" class="auth-status" role="status">Checking sign-in…</p>
-            <form id="sign-in-form" hidden>
+            <form id="auth-form" hidden>
                 <label for="email">Email</label>
                 <input id="email" name="email" type="email" autocomplete="username" required>
                 <label for="password">Password</label>
                 <input id="password" name="password" type="password" autocomplete="current-password" required>
-                <button type="submit">Sign in</button>
+                <button type="submit" name="auth-action" value="sign-in">Sign in</button>
+                <button class="secondary-button" type="submit" name="auth-action" value="sign-up">Create account</button>
             </form>
             <button id="sign-out-button" type="button" hidden>Sign out</button>
+            <button id="feedback-count-button" class="secondary-button" type="button" disabled>Count my saved feedback</button>
+            <button id="train-model-button" type="button" disabled>Train my model</button>
+            <p id="training-status" class="auth-status" role="status"></p>
             <p id="auth-error" class="error-message" role="alert" hidden></p>
         </section>
 

@@ -1,30 +1,54 @@
 import json
 import re
-from pathlib import Path
+from functools import lru_cache
 from threading import Semaphore
 
 import numpy as np
 from fastapi import HTTPException
 from ai_edge_litert.interpreter import Interpreter
+from google.api_core.exceptions import NotFound
+from google.cloud import storage
 
 MAX_CONCURRENT_CLASSIFICATIONS = 1
 MAX_LEN = 350
+MODEL_BUCKET = "linkedin-training-512914-models"
 
-model_folder = Path(__file__).resolve().parents[2] / "cnn" / "model_exports"
-config = json.loads((model_folder / "tokenizer.json").read_text())["config"]
-word_index = json.loads(config["word_index"])
-oov_index = word_index[config["oov_token"]]
-
-interpreter = Interpreter(
-    model_path=str(model_folder / "linkedin_posts_classifier.tflite")
-)
 classification_slots = Semaphore(MAX_CONCURRENT_CLASSIFICATIONS)
 
 
-def classify(texts):
+def load_user_model(user_id):
+    model_blob = storage.Client().bucket(MODEL_BUCKET).blob(
+        f"models/{user_id}/model.tflite"
+    )
+    try:
+        model_blob.reload()
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail="No model for this user") from exc
+    return _load_user_model(user_id, model_blob.generation)
+
+
+@lru_cache(maxsize=32)
+def _load_user_model(user_id, _generation):
+    bucket = storage.Client().bucket(MODEL_BUCKET)
+    prefix = f"models/{user_id}"
+
+    try:
+        model_bytes = bucket.blob(f"{prefix}/model.tflite").download_as_bytes()
+        tokenizer_bytes = bucket.blob(f"{prefix}/tokenizer.json").download_as_bytes()
+    except NotFound as exc:
+        raise HTTPException(status_code=404, detail="No model for this user") from exc
+
+    config = json.loads(tokenizer_bytes)["config"]
+    word_index = json.loads(config["word_index"])
+    oov_index = word_index[config["oov_token"]]
+    return Interpreter(model_content=model_bytes), word_index, oov_index
+
+
+def classify(texts, user_id):
     if not texts:
         return []
 
+    interpreter, word_index, oov_index = load_user_model(user_id)
     input_details = interpreter.get_input_details()[0]
     padded = np.zeros((len(texts), MAX_LEN), dtype=input_details["dtype"])
 
@@ -53,7 +77,7 @@ def classify(texts):
     ]
 
 
-def classify_with_limit(texts):
+def classify_with_limit(texts, user_id):
     if not classification_slots.acquire(timeout=0.1):
         raise HTTPException(
             status_code=429,
@@ -62,6 +86,6 @@ def classify_with_limit(texts):
         )
 
     try:
-        return classify(texts)
+        return classify(texts, user_id)
     finally:
         classification_slots.release()

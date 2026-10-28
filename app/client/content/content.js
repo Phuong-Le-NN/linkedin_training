@@ -3,17 +3,12 @@ const TEXT_SELECTOR = '[data-testid="expandable-text-box"]';
 const OVERLAY_SELECTOR = '.low-value-guard-overlay';
 const MAX_CLASSIFICATION_RETRIES = 2;
 const RETRY_DELAY_MS = 2000;
-const DEBUG = false;
 
 // Per-element processing state, not a cache of reusable predictions.
 const postStates = new WeakMap();
 const filterCleanups = new WeakMap();
 let postObserver;
 let classificationEnabled = false;
-
-function debug(...args) {
-    if (DEBUG) console.debug('[Low-Value Guard]', ...args);
-}
 
 function extensionAvailable() {
     try {
@@ -44,6 +39,12 @@ function clearPostFilter(post) {
     const cleanup = filterCleanups.get(post);
     filterCleanups.delete(post);
     cleanup?.();
+}
+
+function revealPost(post) {
+    const state = postStates.get(post);
+    if (state) state.revealed = true;
+    clearPostFilter(post);
 }
 
 function blurPostWithButton(container) {
@@ -94,7 +95,7 @@ function blurPostWithButton(container) {
     overlay.addEventListener('click', event => {
         event.preventDefault();
         event.stopImmediatePropagation();
-        if (button.contains(event.target)) clearPostFilter(container);
+        if (button.contains(event.target)) revealPost(container);
     });
     overlay.appendChild(button);
     // Keep LinkedIn's existing nodes in place.
@@ -117,7 +118,6 @@ function applyPostFilter(post, mode) {
     } else {
         filterCleanups.set(post, blurPostWithButton(post));
     }
-    debug('Applied filter', { mode });
 }
 
 async function requestClassification(text) {
@@ -136,32 +136,27 @@ function isCurrentRequest(post, state) {
     return extensionAvailable() && post.isConnected && postStates.get(post) === state;
 }
 
+function hasCurrentText(post, state) {
+    if (!isCurrentRequest(post, state)) return false;
+    if (readPostText(post) === state.text) return true;
+
+    processPost(post);
+    return false;
+}
+
 async function classifyPost(post, state) {
-    if (!isCurrentRequest(post, state)) return;
-    if (readPostText(post) !== state.text) {
-        processPost(post);
-        return;
-    }
+    if (!hasCurrentText(post, state)) return;
     state.attempts++;
     try {
         const isLowValue = isPromotedPost(post) || await requestClassification(state.text);
         if (!isCurrentRequest(post, state)) return;
         const settings = await LowValueGuardSettings.getSettings();
-        if (!isCurrentRequest(post, state)) return;
-        if (readPostText(post) !== state.text) {
-            processPost(post);
-            return;
-        }
-        if (settings.isEnabled && isLowValue) {
+        if (!hasCurrentText(post, state)) return;
+        if (settings.isEnabled && isLowValue && !state.revealed) {
             applyPostFilter(post, settings.filterMode);
         }
-        debug('Post processed', { isLowValue });
     } catch (error) {
-        if (!isCurrentRequest(post, state)) return;
-        if (readPostText(post) !== state.text) {
-            processPost(post);
-            return;
-        }
+        if (!hasCurrentText(post, state)) return;
         console.error('[Low-Value Guard] Could not process post:', error);
         if (state.attempts <= MAX_CLASSIFICATION_RETRIES) {
             state.retryTimer = setTimeout(() => {
@@ -190,13 +185,14 @@ function processPost(post) {
         return;
     }
     LowValueGuardFeedback.addButtons(post, text);
-    const state = { text, attempts: 0, retryTimer: null };
+    const state = {
+        text,
+        attempts: 0,
+        retryTimer: null,
+        revealed: previous?.revealed ?? false
+    };
     postStates.set(post, state);
-    if (classificationEnabled) void classifyPost(post, state);
-}
-
-function scanExistingPosts() {
-    document.querySelectorAll(POST_SELECTOR).forEach(processPost);
+    if (classificationEnabled && !state.revealed) void classifyPost(post, state);
 }
 
 function collectPosts(node, posts) {
@@ -244,11 +240,9 @@ function observeNewPosts() {
 async function initExtension() {
     if (!extensionAvailable()) return;
     try {
-        const settings = await LowValueGuardSettings.getSettings();
-        classificationEnabled = settings.isEnabled;
+        classificationEnabled = (await LowValueGuardSettings.getSettings()).isEnabled;
         observeNewPosts();
-        scanExistingPosts();
-        debug('Content script initialized');
+        document.querySelectorAll(POST_SELECTOR).forEach(processPost);
     } catch (error) {
         console.error('[Low-Value Guard] Initialization failed:', error);
     }

@@ -1,20 +1,30 @@
+import hashlib
+import unicodedata
+
 from google.cloud import firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
-##################for local dev - create the Firestore client lazily once and reuse it - avoid redo credential
-from functools import lru_cache
 
-@lru_cache(maxsize=1)
-def get_db():
-    return firestore.Client()
-##################
+def post_id(text: str) -> str:
+    normalized = unicodedata.normalize("NFC", " ".join(text.split()))
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
-# db = firestore.Client()
 
-def save_feedback(text: str, useful: bool) -> None:
-    # db.collection("feedback").add({
-    get_db().collection("feedback").add({
+def save_feedback(text: str, useful: bool, user_id: str) -> None:
+    firestore.Client().collection("feedback").document(
+        post_id(user_id + "\0" + text)
+    ).set({
+        "user_id": user_id,
         "text": text,
         "useful": useful,
         "created_at": firestore.SERVER_TIMESTAMP,
     })
 
+
+def count_feedback(user_id: str) -> int:
+    result = (
+        firestore.Client().collection("feedback")
+        .where(filter=FieldFilter("user_id", "==", user_id))
+        .count().get()
+    )
+    return result[0][0].value

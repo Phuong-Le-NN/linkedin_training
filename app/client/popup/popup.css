@@ -45,11 +45,12 @@ h1 { margin: 0; font-family: var(--font-heading); font-size: 34px; font-weight: 
 .auth-section { margin-bottom: 18px; padding: 16px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
 .auth-section h2 { margin: 0; font-size: 14px; font-weight: 650; }
 .auth-status { margin: 6px 0 12px; color: var(--muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
-#sign-in-form { display: grid; gap: 7px; }
-#sign-in-form[hidden], #sign-out-button[hidden] { display: none; }
-#sign-in-form label { font-size: 11px; font-weight: 600; }
-#sign-in-form input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; }
+#auth-form { display: grid; gap: 7px; }
+#auth-form[hidden], #sign-out-button[hidden] { display: none; }
+#auth-form label { font-size: 11px; font-weight: 600; }
+#auth-form input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: white; }
 .auth-section button { width: 100%; margin-top: 7px; padding: 9px 12px; border: 0; border-radius: 7px; background: var(--accent); color: white; font-size: 12px; font-weight: 600; }
+.auth-section .secondary-button { margin-top: 0; background: var(--accent-soft); color: var(--accent); }
 .auth-section button:disabled { opacity: 0.6; cursor: wait; }
 .auth-section input:focus-visible, .auth-section button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
