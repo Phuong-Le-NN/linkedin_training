@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from app.server.classifier import classify_with_limit
 from app.server.store_feedback import count_feedback, save_feedback
 from app.server.auth import verify_firebase_token
+from app.server.training import submit_training
 
 app = FastAPI(dependencies=[Depends(verify_firebase_token)])
 
@@ -51,8 +52,6 @@ def feedback_count(user: dict = Depends(verify_firebase_token)):
     return {"count": count_feedback(user["uid"])}
 
 
-@app.post("/train")
+@app.post("/train", status_code=202)
 def train_model(user: dict = Depends(verify_firebase_token)):
-    raise HTTPException(
-        status_code=501, detail="Training from the extension is not available yet"
-    )
+    return submit_training(user["uid"])

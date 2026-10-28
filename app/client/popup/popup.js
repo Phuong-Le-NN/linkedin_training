@@ -39,10 +39,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (path === '/feedback/count') {
                 trainingStatus.textContent = `${data.count} feedback posts saved.`;
             } else {
-                trainingStatus.textContent = 'Training started. The model will be available when the build finishes.';
-                if (data.build_id) {
+                trainingStatus.textContent = 'Training submitted. The model will be available when the build finishes.';
+                if (data.log_url || data.build_id) {
                     const link = document.createElement('a');
-                    link.href = `https://console.cloud.google.com/cloud-build/builds/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`;
+                    link.href = data.log_url || `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`;
                     link.target = '_blank';
                     link.rel = 'noopener noreferrer';
                     link.textContent = ' View build';
