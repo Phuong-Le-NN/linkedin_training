@@ -12,7 +12,7 @@ def submission(monkeypatch):
     monkeypatch.setenv("TRAINING_TRIGGER_ID", "training-trigger")
     monkeypatch.delenv("TRAINING_REGION", raising=False)
     monkeypatch.delenv("TRAINING_BRANCH", raising=False)
-    feedback_count = MagicMock(return_value=3)
+    feedback_count = MagicMock(return_value=1)
     monkeypatch.setattr(training, "count_feedback", feedback_count)
 
     operation = MagicMock()
@@ -71,7 +71,7 @@ def test_uses_configured_region_and_branch(submission, monkeypatch):
     assert request.source.branch_name == "training"
 
 
-@pytest.mark.parametrize("count", [0, 2])
+@pytest.mark.parametrize("count", [0])
 def test_rejects_insufficient_feedback_without_submitting(submission, count):
     _, _, factory, feedback_count = submission
     feedback_count.return_value = count

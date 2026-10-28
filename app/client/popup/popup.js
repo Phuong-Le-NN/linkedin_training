@@ -1,5 +1,6 @@
 import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth/web-extension';
 import { auth } from '../lib/auth.js';
+import { API_BASE_URL } from '../lib/api_config.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
     const authForm = document.getElementById('auth-form');
@@ -29,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         countButton.disabled = trainButton.disabled = true;
         trainingStatus.textContent = 'Loading…';
         try {
-            const response = await fetch(`http://127.0.0.1:8000${path}`, {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
                 method,
                 headers: { Authorization: `Bearer ${await user.getIdToken()}` }
             });

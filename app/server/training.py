@@ -20,10 +20,10 @@ def submit_training(user_id: str) -> dict:
             status_code=503, detail="Training is not configured."
         )
 
-    if count_feedback(user_id) < 3:
+    if count_feedback(user_id) < 1:
         raise HTTPException(
             status_code=400,
-            detail="Save at least 3 feedback posts before training.",
+            detail="Save at least 1 feedback post before training.",
         )
 
     region = os.environ.get("TRAINING_REGION", "europe-west1")

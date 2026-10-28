@@ -24,7 +24,7 @@
         "type": "module"
     },
     "host_permissions": [
-        "http://127.0.0.1/*",
+        "https://linkedin-training-512914-3hhrx3osja-ew.a.run.app/*",
         "https://identitytoolkit.googleapis.com/*",
         "https://securetoken.googleapis.com/*"
     ],

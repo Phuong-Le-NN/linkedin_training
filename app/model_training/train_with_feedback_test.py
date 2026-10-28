@@ -1,15 +1,13 @@
+from io import BytesIO
 from types import SimpleNamespace
+from zipfile import ZipFile
 from unittest.mock import MagicMock
 
 from app.model_training import train_with_feedback
 
 
-def test_train_with_three_posts(monkeypatch):
-    posts = [
-        {"text": "A useful post about Python", "useful": True},
-        {"text": "Another useful engineering post", "useful": True},
-        {"text": "A useless promotional post", "useful": False},
-    ]
+def test_train_with_one_post(monkeypatch):
+    posts = [{"text": "A useful post about Python", "useful": True}]
     db = MagicMock()
     db.collection.return_value.where.return_value.limit.return_value.stream.return_value = [
         SimpleNamespace(to_dict=lambda post=post: post) for post in posts
@@ -24,9 +22,11 @@ def test_train_with_three_posts(monkeypatch):
 
     train_with_feedback.main()
 
-    names = [call.args[0] for call in bucket.blob.call_args_list]
-    assert names == [
-        "models/test-user/tokenizer.json",
-        "models/test-user/model.tflite",
-    ]
-    assert bucket.blob.return_value.upload_from_string.call_count == 2
+    bucket.blob.assert_called_once_with("models/test-user/model.bundle.zip")
+    upload = bucket.blob.return_value.upload_from_string
+    upload.assert_called_once()
+    assert upload.call_args.kwargs["content_type"] == "application/zip"
+    with ZipFile(BytesIO(upload.call_args.args[0])) as archive:
+        assert set(archive.namelist()) == {"model.tflite", "tokenizer.json"}
+        assert archive.read("model.tflite")
+        assert archive.read("tokenizer.json")
