@@ -10,7 +10,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.server import api, classifier, store_feedback
-from app.server.auth import verify_firebase_token
+from app.server.auth import optional_firebase_user, verify_firebase_token
 
 
 class FakeInterpreter:
@@ -45,7 +45,7 @@ def fake_interpreter(monkeypatch):
     fake = FakeInterpreter()
     monkeypatch.setattr(
         classifier,
-        "load_user_model",
+        "load_effective_model",
         lambda _user_id: (fake, {"this": 2, "is": 3, "useful": 4}, 1),
     )
     monkeypatch.setattr(
@@ -59,50 +59,26 @@ def client(fake_interpreter):
     api.app.dependency_overrides[verify_firebase_token] = (
         lambda: {"uid": "test-user"}
     )
+    api.app.dependency_overrides[optional_firebase_user] = (
+        lambda: {"uid": "test-user"}
+    )
     with TestClient(api.app) as test_client:
         yield test_client
     api.app.dependency_overrides.clear()
 
 
-def test_user_model_cache_refreshes_only_changed_user(monkeypatch):
-    fake_bucket = MagicMock()
-    blobs = {}
-    tokenizer = {
-        "config": {
-            "word_index": json.dumps({"<OOV>": 1}),
-            "oov_token": "<OOV>",
-        }
-    }
+def test_personal_model_cache_refreshes_only_changed_user(model_objects):
+    first_blob = publish_bundle(model_objects, "models/user-a/model.bundle.zip", "first")
+    other_blob = publish_bundle(model_objects, "models/user-b/model.bundle.zip", "other")
+    first = classifier.load_effective_model("user-a")
+    other = classifier.load_effective_model("user-b")
+    assert classifier.load_effective_model("user-a") is first
 
-    def blob(name):
-        if name not in blobs:
-            result = MagicMock()
-            result.generation = 1
-            if name.endswith("model.bundle.zip"):
-                result.reload.side_effect = classifier.NotFound("No bundle")
-            result.download_as_bytes.return_value = (
-                b"model" if name.endswith("model.tflite") else json.dumps(tokenizer).encode()
-            )
-            blobs[name] = result
-        return blobs[name]
-
-    fake_bucket.blob.side_effect = blob
-    fake_client = MagicMock()
-    fake_client.bucket.return_value = fake_bucket
-    monkeypatch.setattr(classifier.storage, "Client", lambda: fake_client)
-    monkeypatch.setattr(classifier, "Interpreter", lambda model_content: FakeInterpreter())
-    classifier._load_user_model.cache_clear()
-
-    first = classifier.load_user_model("user-a")
-    other = classifier.load_user_model("user-b")
-    assert classifier.load_user_model("user-a")[0] is first[0]
-
-    blobs["models/user-a/model.tflite"].generation = 2
-    assert classifier.load_user_model("user-a")[0] is not first[0]
-    assert classifier.load_user_model("user-b")[0] is other[0]
-    assert blobs["models/user-a/model.tflite"].download_as_bytes.call_count == 2
-    assert blobs["models/user-b/model.tflite"].download_as_bytes.call_count == 1
-    classifier._load_user_model.cache_clear()
+    first_blob.generation = 2
+    assert classifier.load_effective_model("user-a") is not first
+    assert classifier.load_effective_model("user-b") is other
+    assert first_blob.download_as_bytes.call_count == 2
+    other_blob.download_as_bytes.assert_called_once()
 
 
 def test_bundle_model_loads_as_one_version(monkeypatch):
@@ -130,17 +106,78 @@ def test_bundle_model_loads_as_one_version(monkeypatch):
     )
     classifier._load_bundle_model.cache_clear()
 
-    first = classifier.load_user_model("bundled-user")
+    first = classifier.load_effective_model("bundled-user")
     assert first[0][0] == b"bundled-model"
     assert first[1]["bundled"] == 2
-    assert classifier.load_user_model("bundled-user") is first
+    assert classifier.load_effective_model("bundled-user") is first
 
     bundle_blob.generation = 2
-    second = classifier.load_user_model("bundled-user")
+    second = classifier.load_effective_model("bundled-user")
     assert second is not first
     assert second[0][0] == b"bundled-model"
     assert bundle_blob.download_as_bytes.call_count == 2
     classifier._load_bundle_model.cache_clear()
+
+
+@pytest.fixture
+def model_objects(monkeypatch):
+    blobs = {}
+
+    def blob(path):
+        if path not in blobs:
+            blobs[path] = MagicMock(generation=1)
+            blobs[path].reload.side_effect = classifier.NotFound(path)
+        return blobs[path]
+
+    storage_client = MagicMock()
+    storage_client.bucket.return_value.blob.side_effect = blob
+    monkeypatch.setattr(classifier.storage, "Client", lambda: storage_client)
+    monkeypatch.setattr(classifier, "Interpreter", lambda model_content: FakeInterpreter())
+    classifier._load_bundle_model.cache_clear()
+    yield blob
+    classifier._load_bundle_model.cache_clear()
+
+
+def publish_bundle(model_objects, path, word):
+    bundle = BytesIO()
+    with ZipFile(bundle, "w") as archive:
+        archive.writestr("model.tflite", b"model")
+        archive.writestr("tokenizer.json", json.dumps({"config": {
+            "word_index": json.dumps({"<OOV>": 1, word: 2}),
+            "oov_token": "<OOV>",
+        }}))
+    blob = model_objects(path)
+    blob.reload.side_effect = None
+    blob.download_as_bytes.return_value = bundle.getvalue()
+    return blob
+
+
+def test_shared_fallback_is_cached_and_personal_model_takes_priority(model_objects):
+    shared_blob = publish_bundle(model_objects, "models/global/v1/model.bundle.zip", "shared")
+
+    first = classifier.load_effective_model("user-a")
+    assert "shared" in first[1]
+    assert classifier.load_effective_model("user-b") is first
+    shared_blob.download_as_bytes.assert_called_once()
+
+    shared_blob.generation = 2
+    updated_shared = classifier.load_effective_model("user-b")
+    assert updated_shared is not first
+    assert shared_blob.download_as_bytes.call_count == 2
+
+    publish_bundle(model_objects, "models/user-a/model.bundle.zip", "personal")
+    personal = classifier.load_effective_model("user-a")
+    assert "personal" in personal[1]
+    assert "shared" not in personal[1]
+    assert classifier.load_effective_model("user-b") is updated_shared
+
+
+def test_no_personal_or_shared_model_returns_404(model_objects):
+    with pytest.raises(HTTPException) as error:
+        classifier.load_effective_model("new-user")
+
+    assert error.value.status_code == 404
+    assert error.value.detail == "No trained model is available"
 
 
 def test_classify_returns_429_when_busy(fake_interpreter):
@@ -195,28 +232,56 @@ def test_batch_endpoint_rejects_more_than_100_posts(client):
     assert response.status_code == 413
 
 
-def test_feedback_endpoint_saves_to_firestore(client, monkeypatch):
-    fake_db = MagicMock()
-    monkeypatch.setattr(store_feedback.firestore, "Client", lambda: fake_db)
-    text = "A useful LinkedIn post"
-
-    response = client.post(
-        "/feedback", json={"text": text, "useful": True}
-    )
-
+@pytest.mark.parametrize("text", ["A useful LinkedIn post", "a", "你好"])
+def test_feedback_endpoint_saves_to_firestore(client, monkeypatch, text):
+    save = MagicMock()
+    monkeypatch.setattr(api, "save_feedback", save)
+    response = client.post("/feedback", json={"text": text, "useful": True})
     assert response.status_code == 201
     assert response.json() == {"saved": True}
-    fake_db.collection.assert_called_once_with("feedback")
-    fake_db.collection.return_value.document.assert_called_once_with(
-        store_feedback.post_id("test-user\0" + text)
-    )
+    save.assert_called_once_with(text, True, "test-user")
 
-    saved_data = (
-        fake_db.collection.return_value.document.return_value.set.call_args
-    )
-    assert saved_data.args[0]["text"] == text
-    assert saved_data.args[0]["useful"] is True
-    assert saved_data.args[0]["user_id"] == "test-user"
+
+@pytest.mark.parametrize("text", ["", " \n\t", "🔥🔥🔥", "...!?"])
+def test_feedback_without_words_is_not_saved(client, monkeypatch, text):
+    save = MagicMock()
+    monkeypatch.setattr(api, "save_feedback", save)
+
+    response = client.post("/feedback", json={"text": text, "useful": True})
+
+    assert response.status_code == 400
+    assert "at least one word" in response.json()["detail"]
+    save.assert_not_called()
+
+
+@pytest.mark.parametrize("path, key", [
+    ("/classify", "text"), ("/classify-batch", "texts"), ("/feedback", "text"),
+])
+@pytest.mark.parametrize("extra_character, expected_status", [(False, 200), (True, 422)])
+def test_text_length_boundary(client, monkeypatch, path, key, extra_character, expected_status):
+    save = MagicMock()
+    monkeypatch.setattr(api, "save_feedback", save)
+    text = "x" * (api.MAX_POST_CHARACTERS + extra_character)
+    payload = {key: [text] if key == "texts" else text}
+    if path == "/feedback":
+        payload["useful"] = True
+        if expected_status == 200:
+            expected_status = 201
+    response = client.post(path, json=payload)
+    assert response.status_code == expected_status
+    if extra_character:
+        save.assert_not_called()
+
+
+def test_signed_out_model_selection_uses_only_the_shared_model(model_objects):
+    shared = publish_bundle(model_objects, "models/global/v1/model.bundle.zip", "shared")
+    assert "shared" in classifier.load_effective_model(None)[1]
+    shared.download_as_bytes.assert_called_once()
+    bucket = classifier.storage.Client().bucket.return_value
+    assert [call.args[0] for call in bucket.blob.call_args_list] == [
+        "models/global/v1/model.bundle.zip",
+        "models/global/v1/model.bundle.zip",
+    ]
 
 
 def test_post_id_normalizes_whitespace():
@@ -234,7 +299,7 @@ def test_feedback_count_uses_authenticated_user(client, monkeypatch):
 
     response = client.get("/feedback/count?user_id=another-user")
 
-    assert response.json() == {"count": 3}
+    assert response.json() == {"count": 3, "limit": 3000}
     field_filter = fake_db.collection.return_value.where.call_args.kwargs["filter"]
     assert field_filter.value == "test-user"
 

@@ -10,6 +10,14 @@ firebase_app = firebase_admin.initialize_app(
 bearer = HTTPBearer(auto_error=False)
 
 
+def optional_firebase_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+) -> dict | None:
+    if credentials is None:
+        return None
+    return verify_firebase_token(credentials)
+
+
 def verify_firebase_token(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
 ) -> dict:
