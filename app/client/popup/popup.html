@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Low-Value Guard</title>
+    <link rel="stylesheet" href="../lib/theme.css">
     <link rel="stylesheet" href="./popup.css">
 </head>
 <body>
@@ -58,32 +59,34 @@
             </div>
 
             <div class="mode-section">
-                <p class="section-label" id="mode-label">WHEN A POST IS FILTERED</p>
-                <div class="mode-options" role="radiogroup" aria-labelledby="mode-label" aria-describedby="mode-description">
-                    <label class="mode-card">
-                        <input type="radio" name="filter-mode" value="blur" checked>
-                        <span class="mode-surface">
-                            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M4 8h16M4 12h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 4"/>
-                            </svg>
-                            <span class="mode-title">Blur</span>
-                            <span class="mode-caption">Reveal when you want</span>
-                            <span class="selection-dot" aria-hidden="true"></span>
-                        </span>
-                    </label>
-                    <label class="mode-card">
-                        <input type="radio" name="filter-mode" value="remove">
-                        <span class="mode-surface">
-                            <svg width="25" height="25" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <rect x="4" y="5" width="16" height="14" rx="3" stroke="currentColor" stroke-width="1.7"/>
-                                <path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-                            </svg>
-                            <span class="mode-title">Hide</span>
-                            <span class="mode-caption">Keep it out of view</span>
-                            <span class="selection-dot" aria-hidden="true"></span>
-                        </span>
-                    </label>
-                </div>
+                <fieldset class="mode-group" aria-describedby="mode-description">
+                    <legend class="section-label">When a post is filtered</legend>
+                    <div class="mode-options">
+                        <label class="mode-card">
+                            <input type="radio" name="filter-mode" value="blur" checked>
+                            <span class="mode-surface">
+                                <svg width="25" height="25" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M4 8h16M4 12h16M4 16h16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-dasharray="1 4"/>
+                                </svg>
+                                <span class="mode-title">Blur</span>
+                                <span class="mode-caption">Reveal when you want</span>
+                                <span class="selection-dot" aria-hidden="true"></span>
+                            </span>
+                        </label>
+                        <label class="mode-card">
+                            <input type="radio" name="filter-mode" value="hide">
+                            <span class="mode-surface">
+                                <svg width="25" height="25" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <rect x="4" y="5" width="16" height="14" rx="3" stroke="currentColor" stroke-width="1.7"/>
+                                    <path d="M9 12h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+                                </svg>
+                                <span class="mode-title">Hide</span>
+                                <span class="mode-caption">Keep it out of view</span>
+                                <span class="selection-dot" aria-hidden="true"></span>
+                            </span>
+                        </label>
+                    </div>
+                </fieldset>
                 <p class="mode-description" id="mode-description">Select “Show post” to reveal a blurred post.</p>
             </div>
         </fieldset>
@@ -91,9 +94,9 @@
         <p id="popup-error" class="error-message" role="alert" hidden></p>
 
         <footer class="footer">
-            <span>A calmer scroll starts here.</span>
-            <button class="settings-button" id="settings-button" type="button">
-                Settings <span aria-hidden="true">↗</span>
+            <span>Learn how filtering works.</span>
+            <button class="guide-button" id="guide-button" type="button">
+                About &amp; guide <span aria-hidden="true">↗</span>
             </button>
         </footer>
     </main>

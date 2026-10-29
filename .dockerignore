@@ -1,0 +1,55 @@
+# Build context for the Python inference server.
+# Keep production server source, requirements-server.txt, and Dockerfile available.
+# Version control and local tooling
+.git/
+.github/
+.codex/
+.agents/
+.idea/
+.vscode/
+**/.DS_Store
+# Python environments, caches, and test artifacts
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+# Local secrets; supply credentials through the runtime environment
+**/.env
+**/.env.*
+**/.aws/
+**/.config/gcloud/
+**/*service-account*.json
+**/*service_account*.json
+**/*firebase-adminsdk*.json
+**/application_default_credentials.json
+**/*.pem
+**/*.key
+# Browser extension source and build tooling
+app/client/
+dist/
+scripts/
+package.json
+package-lock.json
+**/node_modules/
+**/npm-debug.log*
+# Training notebooks, datasets, and scripts
+**/*.ipynb
+**/.ipynb_checkpoints/
+ml/
+app/model_training/
+**/*_test.py
+# Model artifacts are downloaded from Cloud Storage at runtime
+models/
+checkpoints/
+saved_model/
+**/*.tflite
+**/*.h5
+**/*.keras
+**/*.ckpt*
+**/*.pb
+**/*.onnx

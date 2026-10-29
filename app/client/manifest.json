@@ -38,7 +38,7 @@
         "default_popup": "popup/popup.html",
         "default_title": "Low-Value Guard"
     },
-    "options_page": "lib/settings.html",
+    "options_page": "lib/about.html",
     "permissions": [
         "storage"
     ]

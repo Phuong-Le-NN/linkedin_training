@@ -1,11 +1,16 @@
-// Shared settings access for the popup, options page, and LinkedIn content script.
+// Shared settings access for the popup and LinkedIn content script.
 (() => {
     const defaults = Object.freeze({ isEnabled: false, filterMode: "blur" });
-    const validFilterModes = new Set(["blur", "remove"]);
+    const validFilterModes = new Set(["blur", "hide"]);
 
     async function getSettings() {
         const saved = await chrome.storage.sync.get(defaults);
-        return { ...defaults, ...saved };
+        // Keep existing installations in Hide mode after renaming its stored value.
+        const filterMode = saved.filterMode === "remove" ? "hide" : saved.filterMode;
+        return {
+            isEnabled: saved.isEnabled === true,
+            filterMode: validFilterModes.has(filterMode) ? filterMode : defaults.filterMode
+        };
     }
 
     async function updateSettings(changes) {

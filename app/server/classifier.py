@@ -18,45 +18,37 @@ MODEL_BUCKET = "linkedin-training-512914-models"
 classification_slots = Semaphore(MAX_CONCURRENT_CLASSIFICATIONS)
 
 
-def load_user_model(user_id):
+def load_effective_model(user_id):
     bucket = storage.Client().bucket(MODEL_BUCKET)
-    bundle_blob = bucket.blob(f"models/{user_id}/model.bundle.zip")
-    try:
-        bundle_blob.reload()
-    except NotFound:
-        # Models uploaded before the bundle format remain readable.
-        model_blob = bucket.blob(f"models/{user_id}/model.tflite")
-        try:
-            model_blob.reload()
-        except NotFound as exc:
-            raise HTTPException(status_code=404, detail="No model for this user") from exc
-        return _load_user_model(user_id, model_blob.generation)
-    return _load_bundle_model(user_id, bundle_blob.generation)
 
+    prefixes = [f"models/{user_id}"] if user_id else []
+    prefixes.append("models/global/v1")
+
+    for prefix in prefixes:
+        bundle_path = f"{prefix}/model.bundle.zip"
+        bundle_blob = bucket.blob(bundle_path)
+
+        try:
+            bundle_blob.reload()
+        except NotFound:
+            continue
+
+        return _load_bundle_model(bundle_path, bundle_blob.generation)
+
+    raise HTTPException(
+        status_code=404,
+        detail="No trained model is available",
+    )
 
 @lru_cache(maxsize=32)
-def _load_bundle_model(user_id, _generation):
+def _load_bundle_model(bundle_path, _generation):
     bundle_bytes = storage.Client().bucket(MODEL_BUCKET).blob(
-        f"models/{user_id}/model.bundle.zip"
+        bundle_path
     ).download_as_bytes()
     with ZipFile(BytesIO(bundle_bytes)) as archive:
         return _make_interpreter(
             archive.read("model.tflite"), archive.read("tokenizer.json")
         )
-
-
-@lru_cache(maxsize=32)
-def _load_user_model(user_id, _generation):
-    bucket = storage.Client().bucket(MODEL_BUCKET)
-    prefix = f"models/{user_id}"
-
-    try:
-        model_bytes = bucket.blob(f"{prefix}/model.tflite").download_as_bytes()
-        tokenizer_bytes = bucket.blob(f"{prefix}/tokenizer.json").download_as_bytes()
-    except NotFound as exc:
-        raise HTTPException(status_code=404, detail="No model for this user") from exc
-
-    return _make_interpreter(model_bytes, tokenizer_bytes)
 
 
 def _make_interpreter(model_bytes, tokenizer_bytes):
@@ -70,7 +62,7 @@ def classify(texts, user_id):
     if not texts:
         return []
 
-    interpreter, word_index, oov_index = load_user_model(user_id)
+    interpreter, word_index, oov_index = load_effective_model(user_id)
     input_details = interpreter.get_input_details()[0]
     padded = np.zeros((len(texts), MAX_LEN), dtype=input_details["dtype"])
 

@@ -2,63 +2,23 @@ import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndP
 import { auth } from '../lib/auth.js';
 import { API_BASE_URL } from '../lib/api_config.js';
 
-document.addEventListener('DOMContentLoaded', async () => {
+function initializeAuthentication(onUserChanged) {
     const authForm = document.getElementById('auth-form');
     const signOutButton = document.getElementById('sign-out-button');
     const authStatus = document.getElementById('auth-status');
     const authError = document.getElementById('auth-error');
-    const countButton = document.getElementById('feedback-count-button');
-    const trainButton = document.getElementById('train-model-button');
-    const trainingStatus = document.getElementById('training-status');
 
     onAuthStateChanged(auth, user => {
         authError.hidden = true;
-        authStatus.textContent = user ? `Signed in as ${user.email || 'your account'}` : 'Sign in to filter posts.';
+        authStatus.textContent = user ? `Signed in as ${user.email || 'your account'}` : 'Using the shared model. Sign in to save feedback and train your model.';
         authForm.hidden = Boolean(user);
         signOutButton.hidden = !user;
-        countButton.disabled = trainButton.disabled = !user;
-        trainingStatus.textContent = '';
+        onUserChanged(user);
         if (user) authForm.reset();
     }, error => {
         console.error('[Low-Value Guard] Authentication unavailable:', error);
         authStatus.textContent = 'Could not load your sign-in state.';
     });
-
-    async function runUserAction(path, method = 'GET') {
-        const user = auth.currentUser;
-        if (!user) return;
-        countButton.disabled = trainButton.disabled = true;
-        trainingStatus.textContent = 'Loading…';
-        try {
-            const response = await fetch(`${API_BASE_URL}${path}`, {
-                method,
-                headers: { Authorization: `Bearer ${await user.getIdToken()}` }
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || 'Request failed.');
-            if (auth.currentUser?.uid !== user.uid) return;
-            if (path === '/feedback/count') {
-                trainingStatus.textContent = `${data.count} feedback posts saved.`;
-            } else {
-                trainingStatus.textContent = 'Training submitted. The model will be available when the build finishes.';
-                if (data.log_url || data.build_id) {
-                    const link = document.createElement('a');
-                    link.href = data.log_url || `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`;
-                    link.target = '_blank';
-                    link.rel = 'noopener noreferrer';
-                    link.textContent = ' View build';
-                    trainingStatus.append(link);
-                }
-            }
-        } catch (error) {
-            if (auth.currentUser?.uid === user.uid) trainingStatus.textContent = error.message;
-        } finally {
-            countButton.disabled = trainButton.disabled = !auth.currentUser;
-        }
-    }
-
-    countButton.addEventListener('click', () => { void runUserAction('/feedback/count'); });
-    trainButton.addEventListener('click', () => { void runUserAction('/train', 'POST'); });
 
     authForm.addEventListener('submit', async event => {
         event.preventDefault();
@@ -97,7 +57,57 @@ document.addEventListener('DOMContentLoaded', async () => {
             signOutButton.disabled = false;
         }
     });
+}
 
+function initializeTrainingActions() {
+    const countButton = document.getElementById('feedback-count-button');
+    const trainButton = document.getElementById('train-model-button');
+    const trainingStatus = document.getElementById('training-status');
+
+    async function runUserAction(path, method = 'GET') {
+        const user = auth.currentUser;
+        if (!user) return;
+        countButton.disabled = trainButton.disabled = true;
+        trainingStatus.textContent = 'Loading…';
+        try {
+            const response = await fetch(`${API_BASE_URL}${path}`, {
+                method,
+                headers: { Authorization: `Bearer ${await user.getIdToken()}` }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || 'Request failed.');
+            if (auth.currentUser?.uid !== user.uid) return;
+            if (path === '/feedback/count') {
+                const count = Number.isInteger(data.limit) ? `${data.count} of ${data.limit}` : data.count;
+                trainingStatus.textContent = `${count} feedback posts saved.`;
+            } else {
+                trainingStatus.textContent = 'Training submitted. Your personal model will be used when training succeeds.';
+                if (data.log_url || data.build_id) {
+                    const link = document.createElement('a');
+                    link.href = data.log_url || `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = ' View build';
+                    trainingStatus.append(link);
+                }
+            }
+        } catch (error) {
+            if (auth.currentUser?.uid === user.uid) trainingStatus.textContent = error.message;
+        } finally {
+            countButton.disabled = trainButton.disabled = !auth.currentUser;
+        }
+    }
+
+    countButton.addEventListener('click', () => { void runUserAction('/feedback/count'); });
+    trainButton.addEventListener('click', () => { void runUserAction('/train', 'POST'); });
+
+    return user => {
+        countButton.disabled = trainButton.disabled = !user;
+        trainingStatus.textContent = '';
+    };
+}
+
+async function initializeSettings() {
     const settingsApi = globalThis.LowValueGuardSettings;
     const controls = document.getElementById('controls');
     const toggle = document.getElementById('toggle-switch');
@@ -114,7 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         modeInputs.forEach(input => {
             input.checked = input.value === settings.filterMode;
         });
-        description.textContent = settings.filterMode === 'remove'
+        description.textContent = settings.filterMode === 'hide'
             ? 'Filtered posts are hidden from your feed.'
             : 'Select “Show post” to reveal a blurred post.';
     }
@@ -138,12 +148,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    document.getElementById('settings-button').addEventListener('click', async () => {
+    document.getElementById('guide-button').addEventListener('click', async () => {
         try {
             await chrome.runtime.openOptionsPage();
         } catch (error) {
-            console.error('[Low-Value Guard] Could not open settings:', error);
-            showError('Could not open settings. Please try again.');
+            console.error('[Low-Value Guard] Could not open guide:', error);
+            showError('Could not open the guide. Please try again.');
         }
     });
 
@@ -167,4 +177,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (input.checked) void save({ filterMode: input.value });
         });
     });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const updateTrainingUser = initializeTrainingActions();
+    initializeAuthentication(updateTrainingUser);
+    void initializeSettings();
 });

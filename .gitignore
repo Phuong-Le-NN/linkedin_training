@@ -1,10 +1,11 @@
 .venv/
 node_modules/
 app/client/build/
-cnn/model_exports/*.keras
-cnn/model_exports/*.tflite
-cnn/model_exports/*.json
-cnn/model_exports/*.html
+dist/
+ml/exports/*.keras
+ml/exports/*.tflite
+ml/exports/*.json
+ml/exports/*.html
 __pycache__/
 *.py[cod]
 .pytest_cache/

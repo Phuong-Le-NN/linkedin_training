@@ -1,14 +1,13 @@
 const POST_SELECTOR = '[role="listitem"][componentkey^="update-card-focus"]';
 const TEXT_SELECTOR = '[data-testid="expandable-text-box"]';
 const OVERLAY_SELECTOR = '.low-value-guard-overlay';
-const MAX_CLASSIFICATION_RETRIES = 2;
-const RETRY_DELAY_MS = 2000;
 
 // Per-element processing state, not a cache of reusable predictions.
 const postStates = new WeakMap();
 const filterCleanups = new WeakMap();
 let postObserver;
-let classificationEnabled = false;
+let settings = { isEnabled: false, filterMode: 'blur' };
+let initialized = false;
 
 function extensionAvailable() {
     try {
@@ -111,12 +110,20 @@ function blurPostWithButton(container) {
 
 function applyPostFilter(post, mode) {
     clearPostFilter(post);
-    if (mode === 'remove') {
+    if (mode === 'hide') {
         const originalDisplay = post.style.display;
         post.style.display = 'none';
         filterCleanups.set(post, () => { post.style.display = originalDisplay; });
     } else {
         filterCleanups.set(post, blurPostWithButton(post));
+    }
+}
+
+function updatePostFilter(post, state) {
+    if (settings.isEnabled && state.isLowValue && !state.revealed) {
+        applyPostFilter(post, settings.filterMode);
+    } else {
+        clearPostFilter(post);
     }
 }
 
@@ -145,39 +152,31 @@ function hasCurrentText(post, state) {
 }
 
 async function classifyPost(post, state) {
-    if (!hasCurrentText(post, state)) return;
-    state.attempts++;
+    if (!settings.isEnabled || !hasCurrentText(post, state)) return;
+    state.pending = true;
     try {
         const isLowValue = isPromotedPost(post) || await requestClassification(state.text);
-        if (!isCurrentRequest(post, state)) return;
-        const settings = await LowValueGuardSettings.getSettings();
         if (!hasCurrentText(post, state)) return;
-        if (settings.isEnabled && isLowValue && !state.revealed) {
-            applyPostFilter(post, settings.filterMode);
-        }
+        state.isLowValue = isLowValue;
+        updatePostFilter(post, state);
     } catch (error) {
-        if (!hasCurrentText(post, state)) return;
+        if (!hasCurrentText(post, state) || !settings.isEnabled) return;
         console.error('[Low-Value Guard] Could not process post:', error);
-        if (state.attempts <= MAX_CLASSIFICATION_RETRIES) {
-            state.retryTimer = setTimeout(() => {
-                state.retryTimer = null;
-                void classifyPost(post, state);
-            }, RETRY_DELAY_MS * state.attempts);
-        }
+    } finally {
+        state.pending = false;
     }
 }
 
-function processPost(post) {
+function processPost(post, force = false) {
     if (!extensionAvailable() || !post.isConnected) return;
     const text = readPostText(post);
     const previous = postStates.get(post);
-    if (previous?.text === text) {
+    if (!force && previous?.text === text) {
         LowValueGuardFeedback.addButtons(post, text);
         return;
     }
 
     // A recycled or edited post gets fresh processing state.
-    clearTimeout(previous?.retryTimer);
     clearPostFilter(post);
     LowValueGuardFeedback.removeButtons(post);
     if (!text) {
@@ -187,12 +186,12 @@ function processPost(post) {
     LowValueGuardFeedback.addButtons(post, text);
     const state = {
         text,
-        attempts: 0,
-        retryTimer: null,
+        pending: false,
+        isLowValue: null,
         revealed: previous?.revealed ?? false
     };
     postStates.set(post, state);
-    if (classificationEnabled && !state.revealed) void classifyPost(post, state);
+    if (settings.isEnabled && !state.revealed) void classifyPost(post, state);
 }
 
 function collectPosts(node, posts) {
@@ -204,7 +203,6 @@ function collectPosts(node, posts) {
 }
 
 function releasePost(post) {
-    clearTimeout(postStates.get(post)?.retryTimer);
     postStates.delete(post);
     clearPostFilter(post);
 }
@@ -228,7 +226,7 @@ function observeNewPosts() {
         removedPosts.forEach(post => {
             if (!post.isConnected) releasePost(post);
         });
-        posts.forEach(processPost);
+        posts.forEach(post => processPost(post));
     });
     postObserver.observe(document.body, {
         childList: true,
@@ -240,17 +238,40 @@ function observeNewPosts() {
 async function initExtension() {
     if (!extensionAvailable()) return;
     try {
-        classificationEnabled = (await LowValueGuardSettings.getSettings()).isEnabled;
+        settings = await LowValueGuardSettings.getSettings();
+        initialized = true;
         observeNewPosts();
-        document.querySelectorAll(POST_SELECTOR).forEach(processPost);
+        document.querySelectorAll(POST_SELECTOR).forEach(post => processPost(post));
     } catch (error) {
         console.error('[Low-Value Guard] Initialization failed:', error);
     }
 }
 
+async function refreshSettings() {
+    settings = await LowValueGuardSettings.getSettings();
+    if (!extensionAvailable()) return;
+    document.querySelectorAll(POST_SELECTOR).forEach(post => {
+        const state = postStates.get(post);
+        if (!state || state.text !== readPostText(post)) {
+            processPost(post);
+            return;
+        }
+        updatePostFilter(post, state);
+        if (settings.isEnabled && state.isLowValue === null && !state.pending && !state.revealed) {
+            void classifyPost(post, state);
+        }
+    });
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
+    if (!initialized) return;
     if (area === 'sync' && (changes.isEnabled || changes.filterMode)) {
-        window.location.reload();
+        void refreshSettings().catch(error => {
+            console.error('[Low-Value Guard] Could not update settings:', error);
+        });
+    }
+    if (area === 'local' && changes.authUserId) {
+        document.querySelectorAll(POST_SELECTOR).forEach(post => processPost(post, true));
     }
 });
 

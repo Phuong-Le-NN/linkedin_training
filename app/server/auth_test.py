@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 from firebase_admin import auth as firebase_auth
 from fastapi.testclient import TestClient
@@ -12,8 +14,6 @@ client = TestClient(api.app)
 @pytest.mark.parametrize(
     "method, path, body",
     [
-        ("POST", "/classify", {"text": "post"}),
-        ("POST", "/classify-batch", {"texts": ["post"]}),
         ("POST", "/feedback", {"text": "post", "useful": True}),
         ("GET", "/feedback/count", None),
         ("POST", "/train", None),
@@ -26,15 +26,30 @@ def test_routes_require_a_bearer_token(method, path, body):
     assert response.headers["www-authenticate"] == "Bearer"
 
 
-def test_invalid_token_is_rejected(monkeypatch):
+@pytest.mark.parametrize(
+    "path, body",
+    [("/classify", {"text": "post"}), ("/classify-batch", {"texts": ["post"]})],
+)
+def test_signed_out_users_can_classify_with_the_shared_model(monkeypatch, path, body):
+    classify = MagicMock(return_value=[{"label": "useful"}])
+    monkeypatch.setattr(api, "classify_with_limit", classify)
+
+    response = client.post(f"{path}?user_id=someone-else", json=body)
+
+    assert response.status_code == 200
+    classify.assert_called_once_with(["post"], None)
+
+
+@pytest.mark.parametrize("path", ["/classify", "/classify-batch"])
+def test_invalid_token_is_rejected(monkeypatch, path):
     def reject_token(token, app):
         raise firebase_auth.InvalidIdTokenError("invalid token")
 
     monkeypatch.setattr(server_auth.firebase_auth, "verify_id_token", reject_token)
     response = client.post(
-        "/classify",
+        path,
         headers={"Authorization": "Bearer bad-token"},
-        json={"text": "post"},
+        json={"texts": ["post"]} if path == "/classify-batch" else {"text": "post"},
     )
 
     assert response.status_code == 401
