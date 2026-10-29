@@ -1,6 +1,10 @@
 {
   "scripts": {
     "build:extension": "node scripts/build-extension.mjs",
+    "test": "npm run test:client",
+    "test:client": "node --test app/client/background/*.test.cjs app/client/content/*.test.cjs app/client/lib/*.test.cjs",
+    "test:server": ".venv/bin/python -m pytest -q app/server",
+    "test:training": ".venv/bin/python -m pytest -q app/model_training",
     "build:popup": "ng build popup"
   },
   "devDependencies": {

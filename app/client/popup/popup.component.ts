@@ -11,7 +11,7 @@ import { API_BASE_URL } from '../lib/api_config.js';
 })
 export class PopupComponent implements OnInit, OnDestroy {
     readonly enabled = signal(false);
-    readonly mode = signal<'blur' | 'remove'>('blur');
+    readonly mode = signal<'blur' | 'hide'>('blur');
     readonly pending = signal(false);
     readonly status = signal('Loading preferences...');
     readonly error = signal('');
@@ -31,7 +31,7 @@ export class PopupComponent implements OnInit, OnDestroy {
         try {
             const saved = await chrome.storage.sync.get({ isEnabled: false, filterMode: 'blur' });
             this.enabled.set(saved.isEnabled === true);
-            this.mode.set(saved.filterMode === 'remove' ? 'remove' : 'blur');
+            this.mode.set(saved.filterMode === 'hide' || saved.filterMode === 'remove' ? 'hide' : 'blur');
             this.status.set(this.enabled() ? 'Filtering is on' : 'Filtering is paused');
         } catch {
             this.error.set('Could not load preferences.');
@@ -44,12 +44,12 @@ export class PopupComponent implements OnInit, OnDestroy {
 
     async changeMode(event: Event): Promise<void> {
         const filterMode = (event.target as HTMLSelectElement).value;
-        if (filterMode === 'blur' || filterMode === 'remove') {
+        if (filterMode === 'blur' || filterMode === 'hide') {
             await this.save({ filterMode });
         }
     }
 
-    private async save(update: { isEnabled?: boolean; filterMode?: 'blur' | 'remove' }): Promise<void> {
+    private async save(update: { isEnabled?: boolean; filterMode?: 'blur' | 'hide' }): Promise<void> {
         this.pending.set(true);
         this.error.set('');
         try {

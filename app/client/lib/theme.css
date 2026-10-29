@@ -1,0 +1,12 @@
+:root {
+    color-scheme: light;
+    --page: #faf9f6;
+    --surface: #fffefd;
+    --ink: #202735;
+    --muted: #626b7b;
+    --line: #e7e5df;
+    --accent: #315be8;
+    --accent-soft: #eef2ff;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-heading: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+}
