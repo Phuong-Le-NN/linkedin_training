@@ -16,4 +16,7 @@ __pycache__/
 !.env.example
 .agents/
 skills-lock.json
+
 .angular/
+playwright-report/
+test-results/

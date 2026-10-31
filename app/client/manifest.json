@@ -6,17 +6,9 @@
   "description": "AI-powered Chrome extension that filters low-value posts and clickbait from your LinkedIn feed in real-time.",
   "content_scripts": [
     {
-      "js": [
-        "lib/settings.js",
-        "content/feedback.js",
-        "content/content.js"
-      ],
-      "matches": [
-        "https://www.linkedin.com/feed/*"
-      ],
-      "css": [
-        "content/content.css"
-      ]
+      "js": ["build/content.js"],
+      "matches": ["https://www.linkedin.com/feed/*"],
+      "css": ["content/content.css"]
     }
   ],
   "background": {
@@ -39,7 +31,5 @@
     "default_title": "Low-Value Guard"
   },
   "options_page": "lib/about.html",
-  "permissions": [
-    "storage"
-  ]
+  "permissions": ["storage"]
 }

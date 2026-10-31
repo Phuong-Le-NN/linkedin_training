@@ -1,0 +1,10 @@
+{
+  "singleQuote": true,
+  "tabWidth": 4,
+  "printWidth": 100,
+  "trailingComma": "none",
+  "overrides": [
+    { "files": "*.json", "options": { "tabWidth": 2 } },
+    { "files": "*.component.html", "options": { "parser": "angular" } }
+  ]
+}

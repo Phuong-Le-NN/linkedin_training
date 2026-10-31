@@ -1,11 +1,17 @@
 {
   "scripts": {
     "build:extension": "node scripts/build-extension.mjs",
-    "test": "npm run test:client",
-    "test:client": "node --test app/client/background/*.test.cjs app/client/content/*.test.cjs app/client/lib/*.test.cjs",
+    "test": "npm run test:client && npm run test:ui",
+    "test:client": "node --test app/client/background/*.test.js app/client/content/*.test.js app/client/lib/*.test.js",
     "test:server": ".venv/bin/python -m pytest -q app/server",
     "test:training": ".venv/bin/python -m pytest -q app/model_training",
-    "build:popup": "ng build popup"
+    "build:popup": "ng build popup",
+    "test:ui": "npm run build:extension && playwright test",
+    "typecheck": "tsc --noEmit -p app/client/tsconfig.json",
+    "lint": "eslint app/client scripts/*.mjs *.mjs --max-warnings=0",
+    "format": "prettier --write \"app/client/**/*.{js,ts,cjs,mjs,html,css,json}\" scripts/*.mjs angular.json playwright.config.mjs eslint.config.mjs .prettierrc.json .postcssrc.json package.json",
+    "format:check": "prettier --check \"app/client/**/*.{js,ts,cjs,mjs,html,css,json}\" scripts/*.mjs angular.json playwright.config.mjs eslint.config.mjs .prettierrc.json .postcssrc.json package.json",
+    "check": "npm run typecheck && npm run lint && npm run format:check"
   },
   "devDependencies": {
     "@angular-eslint/eslint-plugin": "21.4.0",
