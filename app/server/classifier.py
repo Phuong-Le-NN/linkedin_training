@@ -40,7 +40,7 @@ def load_effective_model(user_id):
         detail="No trained model is available",
     )
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=50)
 def _load_bundle_model(bundle_path, _generation):
     bundle_bytes = storage.Client().bucket(MODEL_BUCKET).blob(
         bundle_path
