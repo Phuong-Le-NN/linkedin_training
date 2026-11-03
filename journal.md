@@ -1,0 +1,59 @@
+This started out as a tool I did for my own use on my local machine. Whenever I scroll on LinkedIn I used to start the server (lol).
+
+It was because I got stucked with a few other projects I was doing and found myself spending too much time scrolling Linkedin feed and there were posts and updates from connections I would usually enjoy seeing but only depending on the time (like I would rather not seeing posts about new job posts or layoffs continuously =)).
+
+I would prefer not having to unfollow or remove connections just to hide certain post for the time being.
+I would also prefer not having to go in and choose hide posts from this person on LinkedIn as it was more about the content type than the author.
+
+## Oct 1 - Oct 2:
+
+Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from the existing codebase then modified a lot on client side to fit my criteria and works properly
+
+## Oct 8 - Oct 12:
+
+Tried different ways of posts classification and datasets.
+
+- Local running llm worked well. llama3 is lightweight while context window large enough to classify a post well without too detailed prompts or failing when prompts include too many types of post. Downsize I have to think about the prompt/what the post category is everytime I see a post that I am really sure mis-classified. Constantly having to prompt engineer is bad.
+
+- Marking a post content with lable to and add to dataset does not need thinking why the post is useful or not to write prompt. Didn't find a suitable pre-trained models at the time so ended up finding something suitable without trained on too much data.
+
+  CNN was a reasonable starting point for a lightweight binary text classifier, I also suspected local phrase patterns were informative, and I just wanted to train a relatively simple and lightweight model (I did TFLite, aroung 9.8 MB). It wasn't necessarily the best-performing model but I moved on to complete the prototype first. Pretrained BERT might have been a better choice although not as light.
+
+  - The model classified around 70% of the posts well and often err on false positive (post wasn't actually useful). The fact that I used same prompt and model to generate sample training data definitely contributed to this. But LinkedIn doesn't have API or exising dataset for this.
+
+## Oct 12:
+
+Added basic classifier API endpoints passing post content to the trained model and return binary label (I just used FastAPI and Python since I have been using Python and C++ more these days than Javascript. There wasn't a bigger reason :D)
+
+=> worked enough for my use case. I could just start up the server and load unpacked extension into Chrome then posts of very low quality on LinkedIn would be filtered.
+
+## Oct 15 - Oct 31:
+
+Started thinking about other usecases and how this can be packaged. Debugged and deployed
+Up to this point, here are our main constraints (costs... I'm trying to stick to the free tier of the providers =D):
+
+- Did not do GCS Bucket Per User: Apparently Google Cloud API would "throttle" the requests if too heavy traffic (too many new user sign up quickly). We instead dump every user's .tflite file into one bucket and just naming the files differently, sacrificed bucket-level IAM boundaries. We basically don't have physical block cross-user access at the infrastructure level. I may go back to change this actually. Don't think this extension will ever hit that popularity lol.
+
+  In return our API doesn't blindly trusts a user_id sent in the JSON payload. We use Firebase Admin SDK to verify the client's Auth token and extracts the locked uid server-side, a malicious user cannot spoof another user's ID.
+
+- Google Cloud Storage (for user text data): Considered because did not want to spread too many services. The free tier limits 20,000 write operations per month. GCS is an object store, adding strings one-by-one requires downloading the entire file, appending the string, and re-uploading it. A few users adding daily strings would break the free tier limit. So I ended up using Firestore (no regret).
+
+  Firestore provides exactly 20,000 writes and 50,000 reads per day for free. In return when reading the post contents we just have to filter for all posts content that matches the users ID. A few solution to not make this a speed bottleneck when training model for a specific user is by composite index, chunking and/or subcollection. If I survive this recruiting season to have time I would go back and do this :v
+
+- Google Artifact Registry only provides 500 MB of free storage per month so we strip the full tensorflow library out of the Cloud Run inference container and use tflite-runtime (~2 MB) on a python:3.11-slim-bookworm base image.
+
+- Google Cloud Run: Uses Concurrency=1 to force Google to spin up new containers under heavy load rather than crashing a single container. When I have time, I would go back and do Least Recently Used (LRU) logic in the /tmp directory to hold ~50 active models in RAM, skipping repeated cloud downloads.
+
+- Google Cloud Build: Cloud Run bills by "GB-seconds" of active compute. To avoid paying for idle waiting time, the heavy machine learning training was offloaded to Google Cloud Build (2,500 free build-minutes per month!). Asynchronous, ephemeral background task.
+
+- A few IAM details if you are interested: Cloud Run Service Account is Storage Object Viewer to download the compiled .tflite models into its in-memory /tmp cache, and Cloud Build Editor to trigger the ephemeral retraining jobs. Cloud Run Service Account doesn't have write access. Cloud Build Service Account gets to be Cloud Datastore User to read from Firestore, Storage Object Admin to upload the newly trained .tflite model back to the bucket.
+
+## A few parts/bugs that took too much of my time
+
+- Cloud Run reports success, but the Cloud Build training job fails: Figured out logging for the asynchronous training jobs. Initially, the API logs only told me that Cloud Build had accepted the request not whether training actually succeeded. Had to trace the execution separately and distinguish the API request's success from the background job's result.
+
+- Figuring out permissions across Cloud Run and Cloud Build because they were running under different service accounts. Having permission to trigger a build didn't mean the build itself had access to Firestore or Cloud Storage. Made me understand IAM more, especially how to identify the principal behind a failed operation.
+
+- Figure out how to handle LinkedIn's dynamic DOM. The extension worked on initial page load, but infinite scrolling and asynchronous classifications made it harder to reliably associate results with the right posts. Apart from that brushing up on Angular was easier than I thought.
+
+- Why the classifier wasn't generalizing well. Initially I thought the CNN was too simple, but evaluating the misclassified posts made me realize that the quality and consistency of the training labels mattered just as much as the architecture.
