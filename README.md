@@ -1,5 +1,7 @@
 # Low-Interest Guard
 
+[A not very polished dev journal](https://github.com/Phuong-Le-NN/linkedin_training/blob/main/journal.md)
+
 Chrome extension that hides or blurs unwanted LinkedIn posts without unfollowing people. Users label posts directly in their feed and can train a model to reflect their preferences.
 - Uses MutationObserver to handle infinite scrolling and checks post text before applying predictions, so late responses don’t hide the wrong content.
 - Trains a Word2Vec + TensorFlow CNN on each user’s saved labels, with a shared model available before they train their own.
@@ -10,5 +12,3 @@ Chrome extension that hides or blurs unwanted LinkedIn posts without unfollowing
 
 https://github.com/user-attachments/assets/faeb4fe2-10c1-4a9d-8483-50411c6bed35
 
-## Journal
-[A not very polished dev journal](https://github.com/Phuong-Le-NN/linkedin_training/blob/main/journal.md)
