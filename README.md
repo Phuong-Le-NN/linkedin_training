@@ -1,6 +1,12 @@
 # Low-Value Guard
 
-AI-powered Chrome extension that filters low-value LinkedIn posts.
+AI-powered Chrome extension that predicts and filters uninterested LinkedIn posts.
+
+
+
+https://github.com/user-attachments/assets/faeb4fe2-10c1-4a9d-8483-50411c6bed35
+
+
 
 ## Tech stack
 
