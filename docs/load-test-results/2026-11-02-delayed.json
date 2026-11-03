@@ -1,0 +1,458 @@
+{
+  "created_at_utc": "2026-11-02T23:16:07.557658+00:00",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "python": "3.12.10"
+  },
+  "model_exports_sha256": {
+    "linkedin_posts_classifier.tflite": "d260042402cc8e7e2e6ecb1f8d0fe4e23a167e484698549589cd64418d6d15d5",
+    "tokenizer.json": "72772330d4930f61bd0afdd33c66b697503616a1003f9914e30aefac02591c6e"
+  },
+  "scope": "Local single-process API; real exported LiteRT model; simulated identities and storage; no retries",
+  "limitations": [
+    "Not a Cloud Run capacity forecast; excludes real Firebase verification, cloud storage and network.",
+    "All personal identities use identical model/tokenizer bytes but distinct cached interpreters.",
+    "Closed-loop workers maintain concurrency; requests may queue in the HTTP or server thread pool.",
+    "RSS sampled every 10ms, includes interpreter/runtime overhead, and may retain freed allocations between cases.",
+    "Delays are synthetic inputs, not measured cloud latencies; burst cases start together and then replenish."
+  ],
+  "simulated_storage_delay_ms": {
+    "metadata": 20.0,
+    "download": 50.0
+  },
+  "cases": [
+    {
+      "name": "shared-cold-c1",
+      "requests": 128,
+      "concurrency": 1,
+      "users": 0,
+      "batch_size": 1,
+      "reset_cache": true,
+      "elapsed_seconds": 4.144,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 30.89,
+      "successful_posts_per_second": 30.89,
+      "latency_ms_all": {
+        "p50": 32.2,
+        "p95": 32.75
+      },
+      "latency_ms_success": {
+        "p50": 32.2,
+        "p95": 32.75
+      },
+      "server_rss_mib": {
+        "start": 111.55,
+        "sampled_peak": 148.95,
+        "end": 148.95
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 1,
+        "bundle_download_bytes": 8490791
+      },
+      "cache": {
+        "hits": 127,
+        "misses": 1,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "shared-warm-c4",
+      "requests": 128,
+      "concurrency": 4,
+      "users": 0,
+      "batch_size": 1,
+      "reset_cache": false,
+      "elapsed_seconds": 3.657,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 35.0,
+      "successful_posts_per_second": 35.0,
+      "latency_ms_all": {
+        "p50": 114.2,
+        "p95": 119.88
+      },
+      "latency_ms_success": {
+        "p50": 114.2,
+        "p95": 119.88
+      },
+      "server_rss_mib": {
+        "start": 148.95,
+        "sampled_peak": 149.23,
+        "end": 149.23
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 128,
+        "misses": 0,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "shared-warm-c16",
+      "requests": 128,
+      "concurrency": 16,
+      "users": 0,
+      "batch_size": 1,
+      "reset_cache": false,
+      "elapsed_seconds": 0.922,
+      "statuses": {
+        "200": 33,
+        "429": 95
+      },
+      "rate_429_percent": 74.22,
+      "successful_requests_per_second": 35.78,
+      "successful_posts_per_second": 35.78,
+      "latency_ms_all": {
+        "p50": 110.56,
+        "p95": 130.51
+      },
+      "latency_ms_success": {
+        "p50": 114.55,
+        "p95": 132.84
+      },
+      "server_rss_mib": {
+        "start": 149.23,
+        "sampled_peak": 150.06,
+        "end": 150.06
+      },
+      "storage": {
+        "metadata_checks": 33,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 33,
+        "misses": 0,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "shared-warm-c64",
+      "requests": 128,
+      "concurrency": 64,
+      "users": 0,
+      "batch_size": 1,
+      "reset_cache": false,
+      "elapsed_seconds": 0.701,
+      "statuses": {
+        "200": 24,
+        "429": 104
+      },
+      "rate_429_percent": 81.25,
+      "successful_requests_per_second": 34.24,
+      "successful_posts_per_second": 34.24,
+      "latency_ms_all": {
+        "p50": 198.31,
+        "p95": 413.7
+      },
+      "latency_ms_success": {
+        "p50": 227.52,
+        "p95": 411.38
+      },
+      "server_rss_mib": {
+        "start": 150.06,
+        "sampled_peak": 152.44,
+        "end": 152.44
+      },
+      "storage": {
+        "metadata_checks": 24,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 24,
+        "misses": 0,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "shared-batch10-c1",
+      "requests": 128,
+      "concurrency": 1,
+      "users": 0,
+      "batch_size": 10,
+      "reset_cache": false,
+      "elapsed_seconds": 10.128,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 12.64,
+      "successful_posts_per_second": 126.38,
+      "latency_ms_all": {
+        "p50": 75.39,
+        "p95": 92.45
+      },
+      "latency_ms_success": {
+        "p50": 75.39,
+        "p95": 92.45
+      },
+      "server_rss_mib": {
+        "start": 152.44,
+        "sampled_peak": 153.08,
+        "end": 151.84
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 128,
+        "misses": 0,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "shared-batch10-c4",
+      "requests": 128,
+      "concurrency": 4,
+      "users": 0,
+      "batch_size": 10,
+      "reset_cache": false,
+      "elapsed_seconds": 4.192,
+      "statuses": {
+        "200": 57,
+        "429": 71
+      },
+      "rate_429_percent": 55.47,
+      "successful_requests_per_second": 13.6,
+      "successful_posts_per_second": 135.99,
+      "latency_ms_all": {
+        "p50": 109.17,
+        "p95": 177.17
+      },
+      "latency_ms_success": {
+        "p50": 145.41,
+        "p95": 179.05
+      },
+      "server_rss_mib": {
+        "start": 151.84,
+        "sampled_peak": 152.42,
+        "end": 152.42
+      },
+      "storage": {
+        "metadata_checks": 57,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 57,
+        "misses": 0,
+        "entries": 1,
+        "limit": 32
+      }
+    },
+    {
+      "name": "personal8-cold-c1",
+      "requests": 128,
+      "concurrency": 1,
+      "users": 8,
+      "batch_size": 1,
+      "reset_cache": true,
+      "elapsed_seconds": 4.816,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 26.58,
+      "successful_posts_per_second": 26.58,
+      "latency_ms_all": {
+        "p50": 32.19,
+        "p95": 118.07
+      },
+      "latency_ms_success": {
+        "p50": 32.19,
+        "p95": 118.07
+      },
+      "server_rss_mib": {
+        "start": 152.45,
+        "sampled_peak": 269.03,
+        "end": 269.05
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 8,
+        "bundle_download_bytes": 67926328
+      },
+      "cache": {
+        "hits": 120,
+        "misses": 8,
+        "entries": 8,
+        "limit": 32
+      }
+    },
+    {
+      "name": "personal8-warm-c4",
+      "requests": 128,
+      "concurrency": 4,
+      "users": 8,
+      "batch_size": 1,
+      "reset_cache": false,
+      "elapsed_seconds": 3.639,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 35.18,
+      "successful_posts_per_second": 35.18,
+      "latency_ms_all": {
+        "p50": 113.43,
+        "p95": 120.11
+      },
+      "latency_ms_success": {
+        "p50": 113.43,
+        "p95": 120.11
+      },
+      "server_rss_mib": {
+        "start": 269.05,
+        "sampled_peak": 269.06,
+        "end": 269.06
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 0,
+        "bundle_download_bytes": 0
+      },
+      "cache": {
+        "hits": 128,
+        "misses": 0,
+        "entries": 8,
+        "limit": 32
+      }
+    },
+    {
+      "name": "personal64-cold-c1",
+      "requests": 128,
+      "concurrency": 1,
+      "users": 64,
+      "batch_size": 1,
+      "reset_cache": true,
+      "elapsed_seconds": 15.915,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 8.04,
+      "successful_posts_per_second": 8.04,
+      "latency_ms_all": {
+        "p50": 121.62,
+        "p95": 131.93
+      },
+      "latency_ms_success": {
+        "p50": 121.62,
+        "p95": 131.93
+      },
+      "server_rss_mib": {
+        "start": 269.06,
+        "sampled_peak": 616.39,
+        "end": 600.09
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 128,
+        "bundle_download_bytes": 1086821248
+      },
+      "cache": {
+        "hits": 0,
+        "misses": 128,
+        "entries": 32,
+        "limit": 32
+      }
+    },
+    {
+      "name": "personal64-repeat-c1",
+      "requests": 128,
+      "concurrency": 1,
+      "users": 64,
+      "batch_size": 1,
+      "reset_cache": false,
+      "elapsed_seconds": 15.458,
+      "statuses": {
+        "200": 128
+      },
+      "rate_429_percent": 0.0,
+      "successful_requests_per_second": 8.28,
+      "successful_posts_per_second": 8.28,
+      "latency_ms_all": {
+        "p50": 120.75,
+        "p95": 123.7
+      },
+      "latency_ms_success": {
+        "p50": 120.75,
+        "p95": 123.7
+      },
+      "server_rss_mib": {
+        "start": 600.09,
+        "sampled_peak": 621.36,
+        "end": 621.36
+      },
+      "storage": {
+        "metadata_checks": 128,
+        "bundle_downloads": 128,
+        "bundle_download_bytes": 1086821248
+      },
+      "cache": {
+        "hits": 0,
+        "misses": 128,
+        "entries": 32,
+        "limit": 32
+      }
+    },
+    {
+      "name": "personal64-burst-c64",
+      "requests": 128,
+      "concurrency": 64,
+      "users": 64,
+      "batch_size": 1,
+      "reset_cache": true,
+      "elapsed_seconds": 1.072,
+      "statuses": {
+        "429": 119,
+        "200": 9
+      },
+      "rate_429_percent": 92.97,
+      "successful_requests_per_second": 8.4,
+      "successful_posts_per_second": 8.4,
+      "latency_ms_all": {
+        "p50": 254.09,
+        "p95": 738.76
+      },
+      "latency_ms_success": {
+        "p50": 481.72,
+        "p95": 837.65
+      },
+      "server_rss_mib": {
+        "start": 472.3,
+        "sampled_peak": 473.61,
+        "end": 473.61
+      },
+      "storage": {
+        "metadata_checks": 9,
+        "bundle_downloads": 9,
+        "bundle_download_bytes": 76417119
+      },
+      "cache": {
+        "hits": 0,
+        "misses": 9,
+        "entries": 9,
+        "limit": 32
+      }
+    }
+  ]
+}
