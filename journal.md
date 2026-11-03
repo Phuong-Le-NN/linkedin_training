@@ -5,11 +5,11 @@ It was because I got stucked with a few other projects I was doing and found mys
 I would prefer not having to unfollow or remove connections just to hide certain post for the time being.
 I would also prefer not having to go in and choose hide posts from this person on LinkedIn as it was more about the content type than the author.
 
-## Oct 1 - Oct 2:
+#### Oct 1 - Oct 2:
 
 Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from the existing codebase then modified a lot on client side to fit my criteria and works properly
 
-## Oct 8 - Oct 12:
+#### Oct 8 - Oct 12:
 
 Tried different ways of posts classification and datasets.
 
@@ -21,15 +21,16 @@ Tried different ways of posts classification and datasets.
 
   - The model classified around 70% of the posts well and often err on false positive (post wasn't actually useful). The fact that I used same prompt and model to generate sample training data definitely contributed to this. But LinkedIn doesn't have API or exising dataset for this.
 
-## Oct 12:
+#### Oct 12:
 
 Added basic classifier API endpoints passing post content to the trained model and return binary label (I just used FastAPI and Python since I have been using Python and C++ more these days than Javascript. There wasn't a bigger reason :D)
 
 => worked enough for my use case. I could just start up the server and load unpacked extension into Chrome then posts of very low quality on LinkedIn would be filtered.
 
-## Oct 15 - Oct 31:
+#### Oct 15 - Oct 31:
 
 Started thinking about other usecases and how this can be packaged. Debugged and deployed
+
 Up to this point, here are our main constraints (costs... I'm trying to stick to the free tier of the providers =D):
 
 - Did not do GCS Bucket Per User: Apparently Google Cloud API would "throttle" the requests if too heavy traffic (too many new user sign up quickly). We instead dump every user's .tflite file into one bucket and just naming the files differently, sacrificed bucket-level IAM boundaries. We basically don't have physical block cross-user access at the infrastructure level. I may go back to change this actually. Don't think this extension will ever hit that popularity lol.
@@ -48,7 +49,7 @@ Up to this point, here are our main constraints (costs... I'm trying to stick to
 
 - A few IAM details if you are interested: Cloud Run Service Account is Storage Object Viewer to download the compiled .tflite models into its in-memory /tmp cache, and Cloud Build Editor to trigger the ephemeral retraining jobs. Cloud Run Service Account doesn't have write access. Cloud Build Service Account gets to be Cloud Datastore User to read from Firestore, Storage Object Admin to upload the newly trained .tflite model back to the bucket.
 
-## A few parts/bugs that took too much of my time
+#### A few parts/bugs that took too much of my time
 
 - Cloud Run reports success, but the Cloud Build training job fails: Figured out logging for the asynchronous training jobs. Initially, the API logs only told me that Cloud Build had accepted the request not whether training actually succeeded. Had to trace the execution separately and distinguish the API request's success from the background job's result.
 
