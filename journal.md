@@ -5,6 +5,8 @@ It was because I got stucked with a few other projects I was doing and found mys
 I would prefer not having to unfollow or remove connections just to hide certain post for the time being.
 Also not having to go in and choose hide posts from this person on LinkedIn as it was more about the content type than the author.
 
+https://github.com/user-attachments/assets/8c5c0fdb-9357-4af3-abf3-81cc454e883c
+
 #### Oct 1 - Oct 2:
 
 Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from an existing codebase then modified a lot on client side to fit my criteria and works properly
