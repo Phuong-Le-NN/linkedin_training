@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Low-Value Guard: filter out low-value content on your LinkedIn feed using AI",
-  "author": "Pankaj Tanwar",
+  "author": "Phuong Le",
   "version": "0.0.5",
   "description": "AI-powered Chrome extension that filters low-value posts and clickbait from your LinkedIn feed in real-time.",
   "content_scripts": [
@@ -16,7 +16,6 @@
     "type": "module"
   },
   "host_permissions": [
-    "https://linkedin-training-512914-3hhrx3osja-ew.a.run.app/*",
     "https://identitytoolkit.googleapis.com/*",
     "https://securetoken.googleapis.com/*"
   ],

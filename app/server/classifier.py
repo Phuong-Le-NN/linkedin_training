@@ -1,4 +1,5 @@
 import json
+import os
 import re
 from io import BytesIO
 from zipfile import ZipFile
@@ -13,7 +14,7 @@ from google.cloud import storage
 
 MAX_CONCURRENT_CLASSIFICATIONS = 1
 MAX_LEN = 350
-MODEL_BUCKET = "linkedin-training-512914-models"
+MODEL_BUCKET = os.environ["MODEL_BUCKET"]
 
 classification_slots = Semaphore(MAX_CONCURRENT_CLASSIFICATIONS)
 

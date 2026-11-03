@@ -3,23 +3,23 @@ This started out as a tool I did for my own use on my local machine. Whenever I 
 It was because I got stucked with a few other projects I was doing and found myself spending too much time scrolling Linkedin feed and there were posts and updates from connections I would usually enjoy seeing but only depending on the time (like I would rather not seeing posts about new job posts or layoffs continuously =)).
 
 I would prefer not having to unfollow or remove connections just to hide certain post for the time being.
-I would also prefer not having to go in and choose hide posts from this person on LinkedIn as it was more about the content type than the author.
+Also not having to go in and choose hide posts from this person on LinkedIn as it was more about the content type than the author.
 
 #### Oct 1 - Oct 2:
 
-Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from the existing codebase then modified a lot on client side to fit my criteria and works properly
+Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from an existing codebase then modified a lot on client side to fit my criteria and works properly
 
 #### Oct 8 - Oct 12:
 
 Tried different ways of posts classification and datasets.
 
-- Local running llm worked well. llama3 is lightweight while context window large enough to classify a post well without too detailed prompts or failing when prompts include too many types of post. Downsize I have to think about the prompt/what the post category is everytime I see a post that I am really sure mis-classified. Constantly having to prompt engineer is bad.
+- Local running llm worked well. llama3 is lightweight while context window large enough to classify a post well without too detailed prompts or failing when prompts include too many types of post. Downsize I have to think about the prompt/what the post category is when I see post surely mis-classified. Constantly having to prompt engineer is bad.
 
 - Marking a post content with lable to and add to dataset does not need thinking why the post is useful or not to write prompt. Didn't find a suitable pre-trained models at the time so ended up finding something suitable without trained on too much data.
 
-  CNN was a reasonable starting point for a lightweight binary text classifier, I also suspected local phrase patterns were informative, and I just wanted to train a relatively simple and lightweight model (I did TFLite, aroung 9.8 MB). It wasn't necessarily the best-performing model but I moved on to complete the prototype first. Pretrained BERT might have been a better choice although not as light.
+  CNN was a reasonable starting point for a lightweight binary text classifier, I also suspected local phrase patterns were informative, and I just wanted to train a relatively simple and lightweight model (I did TFLite, aroung 9.8 MB). Wasn't necessarily the best-performing model but I moved on to complete the prototype first. Pretrained BERT might have been a better choice although not as light.
 
-  - The model classified around 70% of the posts well and often err on false positive (post wasn't actually useful). The fact that I used same prompt and model to generate sample training data definitely contributed to this. But LinkedIn doesn't have API or exising dataset for this.
+  - The model classified around 70% of the posts well and often err on false positive (post wasn't actually useful). The fact that I used same prompt and model to generate sample training data definitely contributed to this. But LinkedIn doesn't have API or exising dataset to do other way.
 
 #### Oct 12:
 

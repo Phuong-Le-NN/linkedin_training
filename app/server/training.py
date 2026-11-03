@@ -9,7 +9,6 @@ from google.cloud.devtools import cloudbuild_v1
 
 from app.server.store_feedback import count_feedback
 
-PROJECT_ID = "linkedin-training-512914"
 logger = logging.getLogger(__name__)
 
 
@@ -28,16 +27,18 @@ def submit_training(user_id: str) -> dict:
 
     region = os.environ.get("TRAINING_REGION", "europe-west1")
     branch = os.environ.get("TRAINING_BRANCH", "main")
+    project_id = os.environ["GOOGLE_CLOUD_PROJECT"]
+    model_bucket = os.environ["MODEL_BUCKET"]
     request = cloudbuild_v1.RunBuildTriggerRequest(
-        project_id=PROJECT_ID,
+        project_id=project_id,
         trigger_id=trigger_id,
         name=(
-            f"projects/{PROJECT_ID}/locations/{region}"
+            f"projects/{project_id}/locations/{region}"
             f"/triggers/{trigger_id}"
         ),
         source=cloudbuild_v1.RepoSource(
             branch_name=branch,
-            substitutions={"_USER_ID": user_id},
+            substitutions={"_USER_ID": user_id, "_MODEL_BUCKET": model_bucket},
         ),
     )
 

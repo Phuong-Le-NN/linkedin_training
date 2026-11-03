@@ -187,11 +187,7 @@ export class PopupComponent implements OnInit, OnDestroy {
                 this.training.set({
                     pending: false,
                     status: 'Training submitted. Your personal model will be used when training succeeds.',
-                    link:
-                        data.log_url ||
-                        (data.build_id
-                            ? `https://console.cloud.google.com/cloud-build/builds;region=europe-west1/${encodeURIComponent(data.build_id)}?project=linkedin-training-512914`
-                            : '')
+                    link: data.log_url || ''
                 });
             }
         } catch (error) {

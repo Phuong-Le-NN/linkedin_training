@@ -11,6 +11,5 @@
     "skipLibCheck": true,
     "types": ["chrome"]
   },
-  "include": ["lib/*.js", "lib/contracts.ts", "background/classification.js"],
-  "exclude": ["**/*.test.js"]
+  "include": ["lib/*.js", "lib/contracts.ts", "background/classification.js"]
 }

@@ -6,6 +6,7 @@ export function createFeedController() {
     const POST_SELECTOR = '[role="listitem"][componentkey^="update-card-focus"]';
     const TEXT_SELECTOR = '[data-testid="expandable-text-box"]';
     const OVERLAY_SELECTOR = '.low-value-guard-overlay';
+    const EXTENSION_UI_SELECTOR = `${OVERLAY_SELECTOR}, .low-value-guard-feedback`;
 
     // Per-element processing state, not a cache of reusable predictions.
     const postStates = new WeakMap();
@@ -27,7 +28,9 @@ export function createFeedController() {
 
     function readPostText(post) {
         const element = post.querySelector(TEXT_SELECTOR);
-        return (element?.innerText || element?.textContent || '').trim();
+        // innerText changes when Hide makes the post non-rendered. Use a stable
+        // DOM value so our own filtering is not mistaken for an edited post.
+        return (element?.textContent || '').replace(/\s+/g, ' ').trim();
     }
 
     function isPromotedPost(post) {
@@ -41,9 +44,9 @@ export function createFeedController() {
     }
 
     function clearPostFilter(post) {
-        const cleanup = filterCleanups.get(post);
+        const filter = filterCleanups.get(post);
         filterCleanups.delete(post);
-        cleanup?.();
+        filter?.cleanup();
     }
 
     function revealPost(post) {
@@ -121,15 +124,22 @@ export function createFeedController() {
     }
 
     function applyPostFilter(post, mode) {
+        const current = filterCleanups.get(post);
+        const stillApplied =
+            mode === 'hide' ? post.style.display === 'none' : post.querySelector(OVERLAY_SELECTOR);
+        if (current?.mode === mode && stillApplied) return;
         clearPostFilter(post);
         if (mode === 'hide') {
             const originalDisplay = post.style.display;
             post.style.display = 'none';
-            filterCleanups.set(post, () => {
-                post.style.display = originalDisplay;
+            filterCleanups.set(post, {
+                mode,
+                cleanup: () => {
+                    post.style.display = originalDisplay;
+                }
             });
         } else {
-            filterCleanups.set(post, blurPostWithButton(post));
+            filterCleanups.set(post, { mode, cleanup: blurPostWithButton(post) });
         }
     }
 
@@ -203,7 +213,7 @@ export function createFeedController() {
 
     function collectPosts(node, posts) {
         const element = node instanceof Element ? node : node.parentElement;
-        if (!element || element.closest(OVERLAY_SELECTOR)) return;
+        if (!element || element.closest(EXTENSION_UI_SELECTOR)) return;
         const containingPost = element.closest(POST_SELECTOR);
         if (containingPost) posts.add(containingPost);
         element.querySelectorAll(POST_SELECTOR).forEach((post) => posts.add(post));
@@ -225,7 +235,16 @@ export function createFeedController() {
                     mutation.target instanceof Element
                         ? mutation.target
                         : mutation.target.parentElement;
-                if (element && !element.closest(OVERLAY_SELECTOR)) {
+                if (element?.closest(EXTENSION_UI_SELECTOR)) continue;
+                const changedNodes = [...mutation.addedNodes, ...mutation.removedNodes];
+                if (
+                    changedNodes.length &&
+                    changedNodes.every(
+                        (node) => node instanceof Element && node.matches(EXTENSION_UI_SELECTOR)
+                    )
+                )
+                    continue;
+                if (element) {
                     const containingPost = element.closest(POST_SELECTOR);
                     if (containingPost) posts.add(containingPost);
                 }

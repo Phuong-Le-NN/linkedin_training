@@ -1,6 +1,7 @@
 .venv/
 node_modules/
 app/client/build/
+app/client/manifest.json
 dist/
 ml/exports/*.keras
 ml/exports/*.tflite
@@ -15,6 +16,7 @@ __pycache__/
 .env.*
 !.env.example
 .agents/
+.vscode/
 skills-lock.json
 
 .angular/

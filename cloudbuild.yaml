@@ -3,10 +3,12 @@ steps:
     entrypoint: bash
     env:
       - USER_ID=${_USER_ID}
-      - MODEL_BUCKET=linkedin-training-512914-models
+      - GOOGLE_CLOUD_PROJECT=$PROJECT_ID
+      - MODEL_BUCKET=${_MODEL_BUCKET}
     args:
       - -ceu
       - |
+        test -n "$$MODEL_BUCKET" || { echo 'MODEL_BUCKET must be configured'; exit 1; }
         pip install --no-cache-dir \
           tensorflow==2.21.0 \
           gensim==4.4.0 \
@@ -14,6 +16,9 @@ steps:
           google-cloud-firestore \
           google-cloud-storage
         python app/model_training/train_with_feedback.py
+
+substitutions:
+  _MODEL_BUCKET: ''
 
 timeout: 1800s
 options:

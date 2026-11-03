@@ -1,3 +1,5 @@
+import os
+
 import firebase_admin
 from firebase_admin import auth as firebase_auth
 from fastapi import Depends, HTTPException
@@ -5,7 +7,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
 firebase_app = firebase_admin.initialize_app(
-    options={"projectId": "linkedin-training-512914"}
+    options={"projectId": os.environ["GOOGLE_CLOUD_PROJECT"]}
 )
 bearer = HTTPBearer(auto_error=False)
 

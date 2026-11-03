@@ -7,13 +7,7 @@ import angularTemplateParser from '@angular-eslint/template-parser';
 
 export default tseslint.config(
     {
-        ignores: [
-            'node_modules/**',
-            'app/client/build/**',
-            '.angular/**',
-            'test-results/**',
-            'dist/**'
-        ]
+        ignores: ['node_modules/**', 'app/client/build/**', '.angular/**', 'dist/**']
     },
     {
         files: [
