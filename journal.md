@@ -1,3 +1,5 @@
+[A more concise README of demo and tech stack](https://github.com/Phuong-Le-NN/linkedin_training/blob/main/README.md)
+
 This started out as a tool I did for my own use on my local machine. Whenever I scroll on LinkedIn I used to start the server (lol).
 
 It was because I got stucked with a few other projects I was doing and found myself spending too much time scrolling Linkedin feed and there were posts and updates from connections I would usually enjoy seeing but only depending on the time (like I would rather not seeing posts about new job posts or layoffs continuously =)).
