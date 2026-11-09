@@ -1,6 +1,6 @@
 [A more concise README of demo and tech stack](https://github.com/Phuong-Le-NN/linkedin_training/blob/main/README.md)
 
-This started out as a tool I did for my own use on my local machine. Whenever I scroll on LinkedIn I used to start the server (lol).
+This started out as a tool I did for my own use on my local machine. Whenever I scroll on LinkedIn I used to start the server (LOL).
 
 It was because I got stucked with a few other projects I was doing and found myself spending too much time scrolling Linkedin feed and there were posts and updates from connections I would usually enjoy seeing but only depending on the time (like I would rather not seeing posts about new job posts or layoffs continuously =)).
 
@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/8c5c0fdb-9357-4af3-abf3-81cc454e883c
 
 #### Oct 1 - Oct 2:
 
-Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration from an existing codebase then modified a lot on client side to fit my criteria and works properly
+Extension skeleton (service workers, basic DOM reading and editing to blur or post) - started with a migration (mostly AI'ed) from an existing codebase then modified a lot on client side to fit my criteria and works properly
 
 #### Oct 8 - Oct 12:
 
